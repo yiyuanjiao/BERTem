@@ -992,9 +992,42 @@ def main():
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
         model.train()
+
+        # do eval
+        eval_examples = processor.get_dev_examples(args.data_dir)
+        eval_features = convert_examples_to_features(
+            eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
+        logger.info("***** Running evaluation *****")
+        logger.info("  Num examples = %d", len(eval_examples))
+        logger.info("  Batch size = %d", args.eval_batch_size)
+        eval_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+        eval_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
+        eval_entity_mask = torch.tensor([f.entity_mask for f in eval_features], dtype=torch.float)
+        eval_entity_seg_pos = torch.tensor([f.entity_seg_pos for f in eval_features], dtype=torch.long)
+        eval_entity_span1_pos = torch.tensor([f.entity_span1_pos for f in eval_features], dtype=torch.float)
+        eval_entity_span2_pos = torch.tensor([f.entity_span2_pos for f in eval_features], dtype=torch.float)
+        eval_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
+
+        if output_mode == "classification":
+            eval_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
+        elif output_mode == "regression":
+            eval_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.float)
+
+        eval_data = TensorDataset(eval_input_ids, eval_input_mask, eval_entity_mask, eval_entity_seg_pos,
+                                  eval_entity_span1_pos, eval_entity_span2_pos, eval_segment_ids, eval_label_ids)
+        # Run prediction for full data
+        eval_sampler = SequentialSampler(eval_data)
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+        model.eval()
+        eval_loss = 0
+        nb_eval_steps = 0
+        preds = []
+
+
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
+            tr_preds = []
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
@@ -1031,6 +1064,77 @@ def main():
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
+                    if len(tr_preds) == 0:
+                        tr_preds.append(logits.detach().cpu().numpy())
+                    else:
+                        tr_preds[0] = np.append(
+                            tr_preds[0], logits.detach().cpu().numpy(), axis=0)
+                    logger.info(" batch_loss = %s",loss.item())
+            tr_preds = tr_preds[0]
+            if output_mode == "classification":
+                tr_preds = np.argmax(tr_preds, axis=1)
+            elif output_mode == "regression":
+                tr_preds = np.squeeze(tr_preds)
+            print(tr_preds)
+            print("_________________________________")
+            tr_result = compute_metrics(task_name, tr_preds, all_label_ids.numpy())
+            train_loss = tr_loss / global_step if args.do_train else None
+
+            tr_result['train_loss'] = train_loss
+            tr_result['global_step'] = global_step
+            for key in sorted(tr_result.keys()):
+                logger.info("  %s = %s", key, str(tr_result[key]))
+
+            for input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids in tqdm(
+                    eval_dataloader, desc="Evaluating"):
+                input_ids = input_ids.to(device)
+                input_mask = input_mask.to(device)
+                entity_mask = entity_mask.to(device)
+                entity_seg_pos = entity_seg_pos.to(device)
+                entity_span1_pos = entity_span1_pos.to(device)
+                entity_span2_pos = entity_span2_pos.to(device)
+                segment_ids = segment_ids.to(device)
+                label_ids = label_ids.to(device)
+                with torch.no_grad():
+                    logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos,
+                                   entity_span2_pos, labels=None)
+                    # logits = model(input_ids, segment_ids, input_mask, labels=None)
+
+                # create eval loss and other metric required by the task
+                if output_mode == "classification":
+                    loss_fct = CrossEntropyLoss()
+                    tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
+                elif output_mode == "regression":
+                    loss_fct = MSELoss()
+                    tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
+
+                eval_loss += tmp_eval_loss.mean().item()
+                nb_eval_steps += 1
+                if len(preds) == 0:
+                    preds.append(logits.detach().cpu().numpy())
+                else:
+                    preds[0] = np.append(
+                        preds[0], logits.detach().cpu().numpy(), axis=0)
+            eval_loss = eval_loss / nb_eval_steps
+            preds = preds[0]
+            if output_mode == "classification":
+                preds = np.argmax(preds, axis=1)
+            elif output_mode == "regression":
+                preds = np.squeeze(preds)
+            result = compute_metrics(task_name, preds, eval_label_ids.numpy())
+            loss = tr_loss / global_step if args.do_train else None
+
+            result['eval_loss'] = eval_loss
+            result['global_step'] = global_step
+            result['loss'] = loss
+
+            output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
+            with open(output_eval_file, "w") as writer:
+                logger.info("***** Eval results *****")
+                for key in sorted(result.keys()):
+                    logger.info("  %s = %s", key, str(result[key]))
+                    writer.write("%s = %s\n" % (key, str(result[key])))
+
 
     if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
@@ -1051,152 +1155,6 @@ def main():
         model = BertForSequenceClassification.from_pretrained(args.bert_model, num_labels=num_labels)
     model.to(device)
 
-    if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        eval_examples = processor.get_dev_examples(args.data_dir)
-        eval_features = convert_examples_to_features(
-            eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-        logger.info("***** Running evaluation *****")
-        logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", args.eval_batch_size)
-        all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
-        all_entity_mask = torch.tensor([f.entity_mask for f in eval_features], dtype=torch.float)
-        all_entity_seg_pos = torch.tensor([f.entity_seg_pos for f in eval_features], dtype=torch.long)
-        all_entity_span1_pos = torch.tensor([f.entity_span1_pos for f in eval_features], dtype=torch.float)
-        all_entity_span2_pos = torch.tensor([f.entity_span2_pos for f in eval_features], dtype=torch.float)
-        all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
-
-        if output_mode == "classification":
-            all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-        elif output_mode == "regression":
-            all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.float)
-
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_entity_mask, all_entity_seg_pos, all_entity_span1_pos, all_entity_span2_pos, all_segment_ids, all_label_ids)
-        # Run prediction for full data
-        eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-
-        model.eval()
-        eval_loss = 0
-        nb_eval_steps = 0
-        preds = []
-
-        for input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
-            input_ids = input_ids.to(device)
-            input_mask = input_mask.to(device)
-            entity_mask = entity_mask.to(device)
-            entity_seg_pos = entity_seg_pos.to(device)
-            entity_span1_pos = entity_span1_pos.to(device)
-            entity_span2_pos = entity_span2_pos.to(device)
-            segment_ids = segment_ids.to(device)
-            label_ids = label_ids.to(device)
-            with torch.no_grad():
-                logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, labels=None)
-                #logits = model(input_ids, segment_ids, input_mask, labels=None)
-
-            # create eval loss and other metric required by the task
-            if output_mode == "classification":
-                loss_fct = CrossEntropyLoss()
-                tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
-            elif output_mode == "regression":
-                loss_fct = MSELoss()
-                tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
-            
-            eval_loss += tmp_eval_loss.mean().item()
-            nb_eval_steps += 1
-            if len(preds) == 0:
-                preds.append(logits.detach().cpu().numpy())
-            else:
-                preds[0] = np.append(
-                    preds[0], logits.detach().cpu().numpy(), axis=0)
-
-        eval_loss = eval_loss / nb_eval_steps
-        preds = preds[0]
-        if output_mode == "classification":
-            preds = np.argmax(preds, axis=1)
-        elif output_mode == "regression":
-            preds = np.squeeze(preds)
-        result = compute_metrics(task_name, preds, all_label_ids.numpy())
-        loss = tr_loss/global_step if args.do_train else None
-
-        result['eval_loss'] = eval_loss
-        result['global_step'] = global_step
-        result['loss'] = loss
-
-        output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-        with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-
-        # hack for MNLI-MM
-        if task_name == "mnli":
-            task_name = "mnli-mm"
-            processor = processors[task_name]()
-
-            if os.path.exists(args.output_dir + '-MM') and os.listdir(args.output_dir + '-MM') and args.do_train:
-                raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
-            if not os.path.exists(args.output_dir + '-MM'):
-                os.makedirs(args.output_dir + '-MM')
-
-            eval_examples = processor.get_dev_examples(args.data_dir)
-            eval_features = convert_examples_to_features(
-                eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-            logger.info("***** Running evaluation *****")
-            logger.info("  Num examples = %d", len(eval_examples))
-            logger.info("  Batch size = %d", args.eval_batch_size)
-            all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
-            all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
-            all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
-            all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-
-            eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-            # Run prediction for full data
-            eval_sampler = SequentialSampler(eval_data)
-            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-
-            model.eval()
-            eval_loss = 0
-            nb_eval_steps = 0
-            preds = []
-
-            for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
-                input_ids = input_ids.to(device)
-                input_mask = input_mask.to(device)
-                segment_ids = segment_ids.to(device)
-                label_ids = label_ids.to(device)
-
-                with torch.no_grad():
-                    logits = model(input_ids, segment_ids, input_mask, labels=None)
-            
-                loss_fct = CrossEntropyLoss()
-                tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
-            
-                eval_loss += tmp_eval_loss.mean().item()
-                nb_eval_steps += 1
-                if len(preds) == 0:
-                    preds.append(logits.detach().cpu().numpy())
-                else:
-                    preds[0] = np.append(
-                        preds[0], logits.detach().cpu().numpy(), axis=0)
-
-            eval_loss = eval_loss / nb_eval_steps
-            preds = preds[0]
-            preds = np.argmax(preds, axis=1)
-            result = compute_metrics(task_name, preds, all_label_ids.numpy())
-            loss = tr_loss/global_step if args.do_train else None
-
-            result['eval_loss'] = eval_loss
-            result['global_step'] = global_step
-            result['loss'] = loss
-
-            output_eval_file = os.path.join(args.output_dir + '-MM', "eval_results.txt")
-            with open(output_eval_file, "w") as writer:
-                logger.info("***** Eval results *****")
-                for key in sorted(result.keys()):
-                    logger.info("  %s = %s", key, str(result[key]))
-                    writer.write("%s = %s\n" % (key, str(result[key])))
 
 if __name__ == "__main__":
     main()

@@ -1021,7 +1021,7 @@ def main():
         model.eval()
 
 
-
+        epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             epoch_step=0
             tr_loss = 0
@@ -1069,15 +1069,19 @@ def main():
                     else:
                         tr_preds[0] = np.append(
                             tr_preds[0], logits.detach().cpu().numpy(), axis=0)
+                    if len(epoch_label_ids) == 0:
+                        epoch_label_ids.append(label_ids.view(-1).cpu().numpy())
+                    else:
+                        epoch_label_ids[0] = np.append(
+                            epoch_label_ids[0], label_ids.view(-1).cpu().numpy(), axis=0)
                     logger.info(" batch_loss = %s",loss.item())
             tr_preds = tr_preds[0]
+            epoch_label_ids = epoch_label_ids[0]
             if output_mode == "classification":
                 tr_preds = np.argmax(tr_preds, axis=1)
             elif output_mode == "regression":
                 tr_preds = np.squeeze(tr_preds)
-            print(tr_preds)
-            print("_________________________________")
-            tr_result = compute_metrics(task_name, tr_preds, all_label_ids.numpy())
+            tr_result = compute_metrics(task_name, tr_preds, epoch_label_ids)
             train_loss = tr_loss / epoch_step if args.do_train else None
 
             tr_result['train_loss'] = train_loss

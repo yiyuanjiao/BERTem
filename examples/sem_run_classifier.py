@@ -471,6 +471,15 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             assert(old_entity0 == new_entity0)
             assert(old_entity1 == new_entity1)
         except:
+            print(new_entity_pos[0][0])
+            print(new_entity_pos[0][1])
+            print(new_entity_pos[1][0])
+            print(new_entity_pos[1][1])
+            print(old_entity0)
+            print(new_entity0)
+            print(old_entity1)
+            print(new_entity1)
+            print("`````````````````````````````````````````````")
             import pdb;pdb.set_trace()
         
         # Entity marker
@@ -611,6 +620,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         assert len(entity_span2_pos) == max_seq_length
         if output_mode == "classification":
             label_id = label_map[example.label]
+            #lable_id = label_map[''.join(example.lable)]
         elif output_mode == "regression":
             label_id = float(example.label)
         else:

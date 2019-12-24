@@ -1019,9 +1019,7 @@ def main():
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
         model.eval()
-        eval_loss = 0
-        nb_eval_steps = 0
-        preds = []
+
 
 
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
@@ -1085,6 +1083,10 @@ def main():
             for key in sorted(tr_result.keys()):
                 logger.info("  %s = %s", key, str(tr_result[key]))
 
+            #eval
+            eval_loss = 0
+            nb_eval_steps = 0
+            preds = []
             for input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids in tqdm(
                     eval_dataloader, desc="Evaluating"):
                 input_ids = input_ids.to(device)

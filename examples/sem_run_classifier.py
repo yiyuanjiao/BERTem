@@ -680,7 +680,7 @@ def simple_accuracy(preds, labels):
 
 def acc_and_f1(preds, labels):
     acc = accuracy_score(labels, preds)
-    f1 = f1_score(y_true=labels, y_pred=preds,average='micro')
+    f1 = f1_score(y_true=labels, y_pred=preds,average='macro')
     report = classification_report(labels, preds)
     return {
         "acc": acc,

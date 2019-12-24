@@ -1023,6 +1023,7 @@ def main():
 
 
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
+            epoch_step=0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             tr_preds = []
@@ -1062,6 +1063,7 @@ def main():
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
+                    epoch_step += 1
                     if len(tr_preds) == 0:
                         tr_preds.append(logits.detach().cpu().numpy())
                     else:
@@ -1076,7 +1078,7 @@ def main():
             print(tr_preds)
             print("_________________________________")
             tr_result = compute_metrics(task_name, tr_preds, all_label_ids.numpy())
-            train_loss = tr_loss / global_step if args.do_train else None
+            train_loss = tr_loss / epoch_step if args.do_train else None
 
             tr_result['train_loss'] = train_loss
             tr_result['global_step'] = global_step

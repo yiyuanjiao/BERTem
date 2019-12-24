@@ -37,7 +37,7 @@ from tqdm import tqdm, trange
 
 from torch.nn import CrossEntropyLoss, MSELoss
 from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score, classification_report
+from sklearn.metrics import matthews_corrcoef, f1_score, classification_report,accuracy_score
 
 
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
@@ -679,7 +679,7 @@ def simple_accuracy(preds, labels):
 
 
 def acc_and_f1(preds, labels):
-    acc = simple_accuracy(preds, labels)
+    acc = accuracy_score(labels, preds)
     f1 = f1_score(y_true=labels, y_pred=preds,average='micro')
     report = classification_report(labels, preds)
     return {

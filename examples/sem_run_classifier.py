@@ -1021,11 +1021,12 @@ def main():
         model.eval()
 
 
-        epoch_label_ids = []
+        #epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             epoch_step=0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
+            epoch_label_ids = []
             tr_preds = []
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
@@ -1064,17 +1065,17 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
                     epoch_step += 1
-                    if len(tr_preds) == 0:
-                        tr_preds.append(logits.detach().cpu().numpy())
-                    else:
-                        tr_preds[0] = np.append(
-                            tr_preds[0], logits.detach().cpu().numpy(), axis=0)
-                    if len(epoch_label_ids) == 0:
-                        epoch_label_ids.append(label_ids.view(-1).cpu().numpy())
-                    else:
-                        epoch_label_ids[0] = np.append(
-                            epoch_label_ids[0], label_ids.view(-1).cpu().numpy(), axis=0)
-                    logger.info(" batch_loss = %s",loss.item())
+                if len(tr_preds) == 0:
+                    tr_preds.append(logits.detach().cpu().numpy())
+                else:
+                    tr_preds[0] = np.append(
+                        tr_preds[0], logits.detach().cpu().numpy(), axis=0)
+                if len(epoch_label_ids) == 0:
+                    epoch_label_ids.append(label_ids.view(-1).cpu().numpy())
+                else:
+                    epoch_label_ids[0] = np.append(
+                        epoch_label_ids[0], label_ids.view(-1).cpu().numpy(), axis=0)
+                logger.info(" batch_loss = %s",loss.item())
             tr_preds = tr_preds[0]
             epoch_label_ids = epoch_label_ids[0]
             if output_mode == "classification":

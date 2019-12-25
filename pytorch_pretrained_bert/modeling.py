@@ -26,6 +26,7 @@ import shutil
 import tarfile
 import tempfile
 import sys
+import time
 from io import open
 
 import torch
@@ -1053,8 +1054,21 @@ class BertForSequenceClassification(BertPreTrainedModel):
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
-        batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1] 
-         
+        batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
+        batch_entity_emb=[]
+        for i in range(batch_size):
+            sample_entity_emb=[]
+            for j in range(max_seq_length):
+                if entity_seg_pos[i][j] == 1:
+                    if len(sample_entity_emb) == 0:
+                        sample_entity_emb.append(encoded_layers[i][j])
+                    else:
+                        sample_entity_emb[0].append(encoded_layers[i][j])
+            batch_entity_emb.append(sample_entity_emb)
+        print(len(batch_entity_emb))
+        print(len(batch_entity_emb[0]))
+        time.slepp(1000)
+
         diag_entity_mask_ = []
         for i in range(batch_size):
             diag_entity_mask_.append(torch.diag(entity_mask[i]).cpu().numpy())

@@ -932,7 +932,8 @@ def main():
     # Prepare optimizer
     if args.do_train:
         param_optimizer = list(model.named_parameters())
-        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        #no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        no_decay = []
         optimizer_grouped_parameters = [
             {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
             {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
@@ -1138,11 +1139,13 @@ def main():
             result['loss'] = loss
 
             output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-            with open(output_eval_file, "w") as writer:
+            with open(output_eval_file, "a") as writer:
                 logger.info("***** Eval results *****")
                 for key in sorted(result.keys()):
                     logger.info("  %s = %s", key, str(result[key]))
                     writer.write("%s = %s\n" % (key, str(result[key])))
+                for i in range(0,10):
+                    writer.write("\n")
 
 
     if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):

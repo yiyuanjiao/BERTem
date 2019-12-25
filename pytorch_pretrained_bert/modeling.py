@@ -1056,19 +1056,21 @@ class BertForSequenceClassification(BertPreTrainedModel):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
         batch_entity_emb = []
-        encoded_layers_ = encoded_layers.cpu().detach().numpy()
+        #encoded_layers_ = encoded_layers.cpu().detach().numpy()
         for i in range(batch_size):
             sample_entity_emb=[]
             for j in range(max_seq_length):
                 if entity_seg_pos[i][j] == 1:
-                    if len(sample_entity_emb) == 0:
-                        sample_entity_emb.append(encoded_layers_[i][j])
-                    else:
-                        sample_entity_emb[0].append(encoded_layers_[i][j])
-            batch_entity_emb.append(sample_entity_emb)
+                    sample_entity_emb.append(encoded_layers[i][j])
+                    #if len(sample_entity_emb) == 0:
+                    #    sample_entity_emb.append(encoded_layers_[i][j])
+                    #else:
+                    #    sample_entity_emb[0].append(encoded_layers_[i][j])
+            batch_entity_emb.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
+            #batch_entity_emb.append(sample_entity_emb.view(-1))
         print(len(batch_entity_emb))
         print(len(batch_entity_emb[0]))
-        time.slepp(1000)
+        time.sleep(1000)
 
         diag_entity_mask_ = []
         for i in range(batch_size):

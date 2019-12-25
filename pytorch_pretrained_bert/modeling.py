@@ -26,6 +26,7 @@ import shutil
 import tarfile
 import tempfile
 import sys
+import numpy as np
 import time
 from io import open
 
@@ -1055,7 +1056,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
-        batch_entity_emb = []
+        #batch_entity_emb_ = []
+        mark = 0
         #encoded_layers_ = encoded_layers.cpu().detach().numpy()
         for i in range(batch_size):
             sample_entity_emb=[]
@@ -1066,45 +1068,54 @@ class BertForSequenceClassification(BertPreTrainedModel):
                     #    sample_entity_emb.append(encoded_layers_[i][j])
                     #else:
                     #    sample_entity_emb[0].append(encoded_layers_[i][j])
-            batch_entity_emb.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
+            #batch_entity_emb_.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
+            if mark == 0:
+                batch_entity_emb_=torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0)
+                mark=1
+            else:
+                batch_entity_emb_=torch.cat((batch_entity_emb_,torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0)),0)
             #batch_entity_emb.append(sample_entity_emb.view(-1))
-        print(len(batch_entity_emb))
-        print(len(batch_entity_emb[0]))
-        time.sleep(1000)
+        #print(type(encoded_layers[i][j]))
+        #print(batch_entity_emb_.size())
+        batch_entity_emb = batch_entity_emb_.view(batch_size,-1)
+        #print(type(batch_entity_emb))
+        #print(len(batch_entity_emb))
+        #print(len(batch_entity_emb[0]))
+        #time.sleep(1000)
 
-        diag_entity_mask_ = []
-        for i in range(batch_size):
-            diag_entity_mask_.append(torch.diag(entity_mask[i]).cpu().numpy())
-        diag_entity_mask = torch.tensor(diag_entity_mask_).cuda()
+        #diag_entity_mask_ = []
+        #for i in range(batch_size):
+        #    diag_entity_mask_.append(torch.diag(entity_mask[i]).cpu().numpy())
+        #diag_entity_mask = torch.tensor(diag_entity_mask_).cuda()
         
-        diag_entity_seg_pos_ = []
-        for i in range(batch_size):
-            diag_entity_seg_pos_.append(torch.diag(entity_seg_pos[i]).cpu().numpy())
-        diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
+        #diag_entity_seg_pos_ = []
+        #for i in range(batch_size):
+        #    diag_entity_seg_pos_.append(torch.diag(entity_seg_pos[i]).cpu().numpy())
+        #diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
         
-        print(entity_seg_pos.size())
-        print(len(diag_entity_seg_pos_[0]))
-        print(len(diag_entity_seg_pos_))
-        print(encoded_layers.size())
+        #print(entity_seg_pos.size())
+        #print(len(diag_entity_seg_pos_[0]))
+        #print(len(diag_entity_seg_pos_))
+        #print(encoded_layers.size())
         # Get all embedding of entity
         #batch_entity_emb = torch.matmul(diag_entity_mask, encoded_layers)
         
         # Get start embedding of entity with marker
-        batch_entity_emb = torch.matmul(diag_entity_seg_pos, encoded_layers)
+        #batch_entity_emb = torch.matmul(diag_entity_seg_pos, encoded_layers)
         
         """
             Strategy 0: concat start entity marker
             Bug: TODO, get [1536,768,1536,1536,...]
         """
-        concat_tag = 0
-        if concat_tag == 1:
-            entity_marker_emb_ = []
-            for i in range(batch_size):
-                marker_index = entity_seg_pos[i]
-                per_encoded_layer = encoded_layers[i]
-                entity_marker_emb_.append(torch.index_select(per_encoded_layer, 0, torch.nonzero(marker_index).view(-1)).view(-1).detach().cpu().numpy())
-            entity_emb_output = torch.tensor(entity_marker_emb_).cuda()
-            entity_emb_output = self.dropout(entity_emb_output)
+        #concat_tag = 0
+        #if concat_tag == 1:
+        #    entity_marker_emb_ = []
+        #    for i in range(batch_size):
+        #        marker_index = entity_seg_pos[i]
+        #        per_encoded_layer = encoded_layers[i]
+        #        entity_marker_emb_.append(torch.index_select(per_encoded_layer, 0, torch.nonzero(marker_index).view(-1)).view(-1).detach().cpu().numpy())
+        #    entity_emb_output = torch.tensor(entity_marker_emb_).cuda()
+        #    entity_emb_output = self.dropout(entity_emb_output)
         
         """
             Strategy 1: sum all the emb of entity 
@@ -1139,16 +1150,16 @@ class BertForSequenceClassification(BertPreTrainedModel):
         """
             Strategy 4 concatenation of two entity marker emb
         """
-        print(batch_entity_emb.size())
-        entity_emb_output=batch_entity_emb.view(-1)
+        #print(batch_entity_emb.size())
+        #entity_emb_output=batch_entity_emb.view(-1)
 
 
 
-        representation = entity_emb_output
-        
+        #representation = entity_emb_output
+        representation = batch_entity_emb
         # Classifier without concat embedding[hidden_size]
-        logits = self.classifier(representation)
-        
+        #logits = self.classifier(representation)
+        logits = self.classifier_concat(representation)
         # Classifier with concat embedding[hidden_size * 2]
         #logits = self.classifier_concat(representation)
          

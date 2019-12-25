@@ -1056,7 +1056,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
         batch_entity_emb = []
-        encoded_layers_ = encoded_layers.cpu().numpy()
+        encoded_layers_ = encoded_layers.cpu().detach().numpy()
         for i in range(batch_size):
             sample_entity_emb=[]
             for j in range(max_seq_length):

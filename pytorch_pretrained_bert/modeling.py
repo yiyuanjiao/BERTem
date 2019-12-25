@@ -1088,8 +1088,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
         """
             Strategy 1: sum all the emb of entity 
         """
-        entity_emb_output = batch_entity_emb.sum(dim=1)
-        entity_emb_output = self.dropout(entity_emb_output)
+        # entity_emb_output = batch_entity_emb.sum(dim=1)
+        # entity_emb_output = self.dropout(entity_emb_output)
         
         """
             Strategy 2: pooling the emb of entity 
@@ -1114,6 +1114,14 @@ class BertForSequenceClassification(BertPreTrainedModel):
         #entity_emb_output = self.layernorm_concat(entity_emb_output)
         #entity_emb_output = self.relu(entity_emb_output)
         #import pdb;pdb.set_trace()
+
+        """
+            Strategy 4 concatenation of two entity marker emb
+        """
+        entity_emb_output=batch_entity_emb.view(-1)
+
+
+
         representation = entity_emb_output
         
         # Classifier without concat embedding[hidden_size]

@@ -1065,6 +1065,10 @@ class BertForSequenceClassification(BertPreTrainedModel):
             diag_entity_seg_pos_.append(torch.diag(entity_seg_pos[i]).cpu().numpy())
         diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
         
+        print(entity_seg_pos.size())
+        print(len(diag_entity_seg_pos_[0]))
+        print(len(diag_entity_seg_pos_))
+        print(encoded_layers.size())
         # Get all embedding of entity
         #batch_entity_emb = torch.matmul(diag_entity_mask, encoded_layers)
         
@@ -1118,6 +1122,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         """
             Strategy 4 concatenation of two entity marker emb
         """
+        print(batch_entity_emb.size())
         entity_emb_output=batch_entity_emb.view(-1)
 
 

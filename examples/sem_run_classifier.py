@@ -992,13 +992,13 @@ def main():
             train_sampler = DistributedSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
-        model.train()
+        
 
         # do eval
         eval_examples = processor.get_dev_examples(args.data_dir)
         eval_features = convert_examples_to_features(
             eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-        logger.info("***** Running evaluation *****")
+        logger.info("***** evaluation paras*****")
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Batch size = %d", args.eval_batch_size)
         eval_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
@@ -1019,11 +1019,12 @@ def main():
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-        model.eval()
+        
 
 
         #epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
+            model.train()
             epoch_step=0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
@@ -1087,11 +1088,11 @@ def main():
             train_loss = tr_loss / epoch_step if args.do_train else None
 
             tr_result['train_loss'] = train_loss
-            tr_result['global_step'] = global_step
             for key in sorted(tr_result.keys()):
                 logger.info("  %s = %s", key, str(tr_result[key]))
 
             #eval
+            model.eval()
             eval_loss = 0
             nb_eval_steps = 0
             preds = []

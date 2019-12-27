@@ -1078,6 +1078,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
         #print(type(encoded_layers[i][j]))
         #print(batch_entity_emb_.size())
         batch_entity_emb = batch_entity_emb_.view(batch_size,-1)
+        batch_entity_emb = self.dropout(batch_entity_emb)
+        batch_entity_emb = self.relu(batch_entity_emb)
         #print(type(batch_entity_emb))
         #print(len(batch_entity_emb))
         #print(len(batch_entity_emb[0]))

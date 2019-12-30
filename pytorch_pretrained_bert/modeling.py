@@ -1082,8 +1082,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
 
 class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
 
-    def __init__(self,config,num_labels):
-        super(BertForSequenceClassification, self).__init__(config)
+    def __init__(self, config, num_labels):
+        super(BertForSequenceClassificationWithGCN, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -1133,9 +1133,6 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
             e2 = gcn_sem_run_classifier.convert_id_list_to_str(e2_id)
             entity_representation[entity_list.index(e1)] += e1_re
             entity_representation[entity_list.index(e2)] += e2_re
-
-
-
 
     def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, entity_representation = None, spectral = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,

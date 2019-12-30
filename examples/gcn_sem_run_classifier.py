@@ -676,8 +676,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     degree = list(d_)
     adjacency_ = adjacency+torch.diag(torch.ones(len(entity_list)))
     spectral = d.mm(adjacency_).mm(d)
-    entity_list_ids = tokenizer.convert_tokens_to_ids(entity_list)
-    return features, entity_list_ids, degree, spectral
+    return features, entity_list, degree, spectral
 
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
@@ -989,10 +988,8 @@ def main():
     nb_tr_steps = 0
     tr_loss = 0
     if args.do_train:
-        train_features, train_entity_list_ids, train_degree, train_spectral = convert_examples_to_features(
+        train_features, train_entity_list, train_degree, train_spectral = convert_examples_to_features(
             train_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-        print(len(train_entity_list_ids))
-        print("JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ")
         time.sleep(100)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))

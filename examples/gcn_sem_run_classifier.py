@@ -41,7 +41,8 @@ from sklearn.metrics import matthews_corrcoef, f1_score, classification_report,a
 
 
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
-from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig
+from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig, \
+    BertForSequenceClassificationWithGCN
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 

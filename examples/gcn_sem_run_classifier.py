@@ -1023,7 +1023,7 @@ def main():
 
         # do eval
         eval_examples = processor.get_dev_examples(args.data_dir)
-        eval_features = convert_examples_to_features(
+        eval_features, eval_entity_list, eval_degree, eval_spectral = convert_examples_to_features(
             eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
         logger.info("***** evaluation paras*****")
         logger.info("  Num examples = %d", len(eval_examples))

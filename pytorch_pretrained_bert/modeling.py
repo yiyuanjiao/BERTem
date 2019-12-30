@@ -1056,51 +1056,48 @@ class BertForSequenceClassification(BertPreTrainedModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
-        #batch_entity_emb_ = []
+        # batch_entity_emb_ = []
         mark = 0
-        #encoded_layers_ = encoded_layers.cpu().detach().numpy()
+        # encoded_layers_ = encoded_layers.cpu().detach().numpy()
         for i in range(batch_size):
             sample_entity_emb=[]
             for j in range(max_seq_length):
                 if entity_seg_pos[i][j] == 1:
                     sample_entity_emb.append(encoded_layers[i][j])
-                    #if len(sample_entity_emb) == 0:
-                    #    sample_entity_emb.append(encoded_layers_[i][j])
-                    #else:
-                    #    sample_entity_emb[0].append(encoded_layers_[i][j])
-            #batch_entity_emb_.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
+                    # if len(sample_entity_emb) == 0:
+                    #     sample_entity_emb.append(encoded_layers_[i][j])
+                    # else:
+                    #     sample_entity_emb[0].append(encoded_layers_[i][j])
+            # batch_entity_emb_.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
             if mark == 0:
-                batch_entity_emb_=torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0)
-                mark=1
+                batch_entity_emb_ = torch.cat((sample_entity_emb[0], sample_entity_emb[1]), 0)
+                mark = 1
             else:
-                batch_entity_emb_=torch.cat((batch_entity_emb_,torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0)),0)
-            #batch_entity_emb.append(sample_entity_emb.view(-1))
-        #print(type(encoded_layers[i][j]))
-        #print(batch_entity_emb_.size())
+                batch_entity_emb_ = torch.cat((batch_entity_emb_, torch.cat((sample_entity_emb[0],
+                                                                             sample_entity_emb[1]), 0)), 0)
+            # batch_entity_emb.append(sample_entity_emb.view(-1))
+
         batch_entity_emb = batch_entity_emb_.view(batch_size,-1)
         batch_entity_emb = self.dropout(batch_entity_emb)
         batch_entity_emb = self.relu(batch_entity_emb)
-        #print(type(batch_entity_emb))
-        #print(len(batch_entity_emb))
-        #print(len(batch_entity_emb[0]))
-        #time.sleep(1000)
 
-        #diag_entity_mask_ = []
-        #for i in range(batch_size):
+
+        # diag_entity_mask = []
+        # for i in range(batch_size):
         #    diag_entity_mask_.append(torch.diag(entity_mask[i]).cpu().numpy())
-        #diag_entity_mask = torch.tensor(diag_entity_mask_).cuda()
+        # diag_entity_mask = torch.tensor(diag_entity_mask_).cuda()
         
-        #diag_entity_seg_pos_ = []
-        #for i in range(batch_size):
+        # diag_entity_seg_pos_ = []
+        # for i in range(batch_size):
         #    diag_entity_seg_pos_.append(torch.diag(entity_seg_pos[i]).cpu().numpy())
-        #diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
+        # diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
         
-        #print(entity_seg_pos.size())
-        #print(len(diag_entity_seg_pos_[0]))
-        #print(len(diag_entity_seg_pos_))
-        #print(encoded_layers.size())
+        # print(entity_seg_pos.size())
+        # print(len(diag_entity_seg_pos_[0]))
+        # print(len(diag_entity_seg_pos_))
+        # print(encoded_layers.size())
         # Get all embedding of entity
-        #batch_entity_emb = torch.matmul(diag_entity_mask, encoded_layers)
+        # batch_entity_emb = torch.matmul(diag_entity_mask, encoded_layers)
         
         # Get start embedding of entity with marker
         #batch_entity_emb = torch.matmul(diag_entity_seg_pos, encoded_layers)
@@ -1199,13 +1196,14 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
 
         self.apply(self.init_bert_weights)
 
-    def getGraph(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
+    def getGraph(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None,entity_list = None, entity_representation = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
                                                   token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]
 
 
-    def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None, entity_list=None, graph=None):
+
+    def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
                                                   token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]

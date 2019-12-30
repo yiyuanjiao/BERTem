@@ -935,7 +935,7 @@ def main():
 
     # Prepare model
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(args.local_rank))
-    model = BertForSequenceClassification.from_pretrained(args.bert_model,
+    model = BertForSequenceClassificationWithGCN.from_pretrained(args.bert_model,
               cache_dir=cache_dir,
               num_labels=num_labels)
     if args.fp16:
@@ -990,7 +990,6 @@ def main():
     if args.do_train:
         train_features, train_entity_list, train_degree, train_spectral = convert_examples_to_features(
             train_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-        time.sleep(100)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)
@@ -1054,7 +1053,11 @@ def main():
             epoch_label_ids = []
             tr_preds = []
 
-            #train_entity_list_representation=torch.zeros(len(train_entity_list_ids),)
+            train_entity_representation=torch.zeros(len(train_entity_list), model.config.hidden_size)
+            for step, batch in enumerate(tqdm(train_dataloader), desc="Iteration"):
+                batch = tuple(t.to(device) for t in batch)
+                input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
+                model.getGraph(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_list, train_entity_representation, labels=None,)
 
 
 

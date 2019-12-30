@@ -1064,6 +1064,12 @@ def main():
             train_degree_rep = torch.Tensor(len(train_entity_list), model.config.hidden_size)
             train_degree_rep.copy_(train_degree)
             train_entity_representation = train_entity_representation.div(train_degree_rep)
+            print("````````````````````````````````````````")
+            print(len(train_entity_representation))
+            print(len(train_entity_representation[0]))
+            print(train_entity_representation[0])
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            time.sleep(100)
 
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)

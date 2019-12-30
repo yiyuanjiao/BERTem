@@ -41,8 +41,9 @@ from sklearn.metrics import matthews_corrcoef, f1_score, classification_report,a
 
 
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
-from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig, \
-    BertForSequenceClassificationWithGCN
+#from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig, \
+#    BertForSequenceClassificationWithGCN
+from pytorch_pretrained_bert import modeling
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
@@ -939,7 +940,7 @@ def main():
 
     # Prepare model
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(args.local_rank))
-    model = BertForSequenceClassificationWithGCN.from_pretrained(args.bert_model,
+    model = modeling.BertForSequenceClassificationWithGCN.from_pretrained(args.bert_model,
               cache_dir=cache_dir,
               num_labels=num_labels)
     if args.fp16:

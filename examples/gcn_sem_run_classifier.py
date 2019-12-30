@@ -442,6 +442,12 @@ class WnliProcessor(DataProcessor):
                 InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+def convert_id_list_to_str(id_list):
+    s = ''
+    for id in id_list:
+        s+=str(id)
+        s+='_'
+    return s
 
 def convert_examples_to_features(examples, label_list, max_seq_length,
                                  tokenizer, output_mode):
@@ -479,9 +485,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             print('````````````````````````````')
             print(tokens_a)
             time.sleep(100)
-        entity_set.add(new_entity0)
-        entity_set.add(new_entity1)
-        entity_pair_set.add((new_entity0, new_entity1))
+        #entity_set.add(new_entity0)
+        #entity_set.add(new_entity1)
+        #entity_pair_set.add((new_entity0, new_entity1))
         # Entity marker
         tokens_a_ = copy.deepcopy(tokens_a) 
         new_entity_pos_ = copy.deepcopy(new_entity_pos)
@@ -548,7 +554,13 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         input_ids += padding
         input_mask += padding
         segment_ids += padding
-        
+        entity_token_ids0 = input_ids[new_entity_pos[0][0]:new_entity_pos[0][1]]
+        entity_token_ids1 = input_ids[new_entity_pos[1][0]:new_entity_pos[1][1]]
+        e0 = convert_id_list_to_str(entity_token_ids0)
+        e1 = convert_id_list_to_str(entity_token_ids1)
+        entity_set.add(e0)
+        entity_set.add(e1)
+        entity_pair_set.add((e0, e1))
 
         # Used for mention pooling
         entity_mask_tag = 1

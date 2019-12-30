@@ -1177,6 +1177,41 @@ class BertForSequenceClassification(BertPreTrainedModel):
             return logits
 
 
+class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
+
+    def __init__(self,config,num_labels):
+        super(BertForSequenceClassification, self).__init__(config)
+        self.num_labels = num_labels
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+        self.layernorm = nn.LayerNorm(config.hidden_size)
+        self.layernorm_concat = nn.LayerNorm(config.hidden_size * 2)
+        max_seq_length = 128
+        # self.layernorm_concat = nn.LayerNorm(config.hidden_size + max_seq_length * 2)
+        self.layernorm_span = nn.LayerNorm(max_seq_length)
+
+        self.relu = nn.ReLU()
+
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
+        self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
+        # self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
+
+        self.apply(self.init_bert_weights)
+
+    def getGraph(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
+        encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
+                                                  token_type_ids, attention_mask, output_all_encoded_layers=False)
+        batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]
+
+
+    def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None, entity_list=None, graph=None):
+        encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
+                                                  token_type_ids, attention_mask, output_all_encoded_layers=False)
+        batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]
+
+
+
 class BertForMultipleChoice(BertPreTrainedModel):
     """BERT model for multiple choice tasks.
     This module is composed of the BERT model with a linear layer on top of

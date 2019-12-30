@@ -1155,7 +1155,7 @@ def main():
 
         # If we save using the predefined names, we can load using `from_pretrained`
         output_model_file = os.path.join(args.output_dir, WEIGHTS_NAME)
-        output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
+        output_config_file = os.path.join(args.output_dr, CONFIG_NAME)
 
         torch.save(model_to_save.state_dict(), output_model_file)
         model_to_save.config.to_json_file(output_config_file)

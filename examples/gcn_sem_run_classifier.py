@@ -449,6 +449,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 
     label_map = {label : i for i, label in enumerate(label_list)}
     features = []
+    entity_set = set()
+    entity_pair_set = []
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
@@ -481,7 +483,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             print(new_entity1)
             print("`````````````````````````````````````````````")
             import pdb;pdb.set_trace()
-        
+        entity_set.add(new_entity0)
+        entity_set.add(new_entity1)
+        entity_pair_set.add((new_entity0, new_entity1))
         # Entity marker
         tokens_a_ = copy.deepcopy(tokens_a) 
         new_entity_pos_ = copy.deepcopy(new_entity_pos)
@@ -654,7 +658,18 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
                               entity_seg_pos=entity_seg_pos_,
                               entity_span1_pos=entity_span1_pos,
                               entity_span2_pos=entity_span2_pos))
-    return features
+    entity_list = list(entity_set)
+    adjacency = torch.zeros(len(entity_list),len(entity_list))
+    for entity_pair in enumerate(entity_pair_set):
+        adjacency[entity_list.index(entity_pair[0])][entity_list.index(entity_pair[1])] = 1
+        adjacency[entity_list.index(entity_pair[1])][entity_list.index(entity_pair[0])] = 1
+    d_ = adjacency.mm(torch.ones(len(entity_list), 1))+torch.ones(len(entity_list), 1)
+    d = torch.diag(d_.pow(-0.5).view(-1))
+    degree = list(d_)
+    adjacency_ = adjacency+torch.diag(torch.ones(len(entity_list)))
+    spectral = d.mm(adjacency_).mm(d)
+    entity_list_ids = tokenizer.convert_tokens_to_ids(entity_list)
+    return features, entity_list_ids, degree, spectral
 
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
@@ -905,7 +920,7 @@ def main():
     train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
-        train_examples = processor.get_train_examples(args.data_dir)
+        train_examples = processor.get_train_exampzles(args.data_dir)
         num_train_optimization_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
         if args.local_rank != -1:
@@ -966,7 +981,7 @@ def main():
     nb_tr_steps = 0
     tr_loss = 0
     if args.do_train:
-        train_features = convert_examples_to_features(
+        train_features, train_entity_list_ids, train_degree, train_spectral = convert_examples_to_features(
             train_examples, label_list, args.max_seq_length, tokenizer, output_mode)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
@@ -1025,11 +1040,16 @@ def main():
         #epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             model.train()
-            epoch_step=0
+            epoch_step = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             epoch_label_ids = []
             tr_preds = []
+
+            #train_entity_list_representation=torch.zeros(len(train_entity_list_ids),)
+
+
+
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch

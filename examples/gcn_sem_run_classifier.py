@@ -27,7 +27,7 @@ import sys
 sys.path.append('..')
 
 import copy
-
+import time
 import numpy as np
 import torch
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
@@ -450,7 +450,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     label_map = {label : i for i, label in enumerate(label_list)}
     features = []
     entity_set = set()
-    entity_pair_set = []
+    entity_pair_set = set()
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
@@ -473,16 +473,12 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             assert(old_entity0 == new_entity0)
             assert(old_entity1 == new_entity1)
         except:
-            print(new_entity_pos[0][0])
-            print(new_entity_pos[0][1])
-            print(new_entity_pos[1][0])
-            print(new_entity_pos[1][1])
-            print(old_entity0)
-            print(new_entity0)
-            print(old_entity1)
-            print(new_entity1)
-            print("`````````````````````````````````````````````")
             import pdb;pdb.set_trace()
+        if new_entity0=='nuturingrole' or new_entity1=='nuturingrole':
+            print(example.text_a.split())
+            print('````````````````````````````')
+            print(tokens_a)
+            time.sleep(100)
         entity_set.add(new_entity0)
         entity_set.add(new_entity1)
         entity_pair_set.add((new_entity0, new_entity1))
@@ -661,8 +657,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     entity_list = list(entity_set)
     adjacency = torch.zeros(len(entity_list),len(entity_list))
     for entity_pair in enumerate(entity_pair_set):
-        adjacency[entity_list.index(entity_pair[0])][entity_list.index(entity_pair[1])] = 1
-        adjacency[entity_list.index(entity_pair[1])][entity_list.index(entity_pair[0])] = 1
+        adjacency[entity_list.index(entity_pair[1][0])][entity_list.index(entity_pair[1][1])] = 1
+        adjacency[entity_list.index(entity_pair[1][1])][entity_list.index(entity_pair[1][0])] = 1
     d_ = adjacency.mm(torch.ones(len(entity_list), 1))+torch.ones(len(entity_list), 1)
     d = torch.diag(d_.pow(-0.5).view(-1))
     degree = list(d_)
@@ -920,7 +916,7 @@ def main():
     train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
-        train_examples = processor.get_train_exampzles(args.data_dir)
+        train_examples = processor.get_train_examples(args.data_dir)
         num_train_optimization_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
         if args.local_rank != -1:
@@ -983,6 +979,9 @@ def main():
     if args.do_train:
         train_features, train_entity_list_ids, train_degree, train_spectral = convert_examples_to_features(
             train_examples, label_list, args.max_seq_length, tokenizer, output_mode)
+        print(len(train_entity_list_ids))
+        print("JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ")
+        time.sleep(100)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)

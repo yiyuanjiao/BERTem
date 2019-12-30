@@ -589,11 +589,14 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         
         # Strategy 2
         entity_start_pos_tag = 1
+        entity_end_pos_tag = 2
         entity_seg_pos_ = [0] * len(input_ids)
         entity1_start, entity1_end = new_entity_pos[0][0], new_entity_pos[0][1] 
         entity_seg_pos_[entity1_start+1] = entity_start_pos_tag
+        entity_seg_pos_[entity1_end + 1] = entity_end_pos_tag
         entity2_start, entity2_end = new_entity_pos[1][0], new_entity_pos[1][1] 
         entity_seg_pos_[entity2_start+1] = entity_start_pos_tag
+        entity_seg_pos_[entity2_end + 1] = entity_end_pos_tag
 
         # Strategy 3
         entity_span1_pos = [0] * len(input_ids)
@@ -671,9 +674,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     for entity_pair in enumerate(entity_pair_set):
         adjacency[entity_list.index(entity_pair[1][0])][entity_list.index(entity_pair[1][1])] = 1
         adjacency[entity_list.index(entity_pair[1][1])][entity_list.index(entity_pair[1][0])] = 1
-    d_ = adjacency.mm(torch.ones(len(entity_list), 1))+torch.ones(len(entity_list), 1)
+    degree = adjacency.mm(torch.ones(len(entity_list), 1))
+    d_ = degree+torch.ones(len(entity_list), 1)
     d = torch.diag(d_.pow(-0.5).view(-1))
-    degree = list(d_)
     adjacency_ = adjacency+torch.diag(torch.ones(len(entity_list)))
     spectral = d.mm(adjacency_).mm(d)
     return features, entity_list, degree, spectral
@@ -1044,7 +1047,7 @@ def main():
         
 
 
-        #epoch_label_ids = []
+        # epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             model.train()
             epoch_step = 0
@@ -1053,19 +1056,20 @@ def main():
             epoch_label_ids = []
             tr_preds = []
 
-            train_entity_representation=torch.zeros(len(train_entity_list), model.config.hidden_size)
+            train_entity_representation = torch.zeros(len(train_entity_list), model.config.hidden_size)
             for step, batch in enumerate(tqdm(train_dataloader), desc="Iteration"):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
-                model.getGraph(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_list, train_entity_representation, labels=None,)
-
-
+                model.get_representation(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_list, train_entity_representation, labels=None)
+            train_degree_rep = torch.Tensor(len(train_entity_list), model.config.hidden_size)
+            train_degree_rep.copy_(train_degree)
+            train_entity_representation = train_entity_representation.div(train_degree_rep)
 
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
                 # define a new function to compute loss values for both output_modes
-                logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, labels=None)
+                logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_representation, train_spectral, labels=None)
 
                 if output_mode == "classification":
                     loss_fct = CrossEntropyLoss()

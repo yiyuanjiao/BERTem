@@ -16,7 +16,7 @@
 """PyTorch BERT model."""
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-
+from examples import gcn_sem_run_classifier
 import copy
 import json
 import logging
@@ -1056,116 +1056,22 @@ class BertForSequenceClassification(BertPreTrainedModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels=None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
-        # batch_entity_emb_ = []
         mark = 0
-        # encoded_layers_ = encoded_layers.cpu().detach().numpy()
         for i in range(batch_size):
             sample_entity_emb=[]
             for j in range(max_seq_length):
                 if entity_seg_pos[i][j] == 1:
                     sample_entity_emb.append(encoded_layers[i][j])
-                    # if len(sample_entity_emb) == 0:
-                    #     sample_entity_emb.append(encoded_layers_[i][j])
-                    # else:
-                    #     sample_entity_emb[0].append(encoded_layers_[i][j])
-            # batch_entity_emb_.append(torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0))
             if mark == 0:
                 batch_entity_emb_ = torch.cat((sample_entity_emb[0], sample_entity_emb[1]), 0)
                 mark = 1
             else:
-                batch_entity_emb_ = torch.cat((batch_entity_emb_, torch.cat((sample_entity_emb[0],
-                                                                             sample_entity_emb[1]), 0)), 0)
-            # batch_entity_emb.append(sample_entity_emb.view(-1))
-
+                batch_entity_emb_ = torch.cat((batch_entity_emb_, torch.cat((sample_entity_emb[0],                                                                             sample_entity_emb[1]), 0)), 0)
         batch_entity_emb = batch_entity_emb_.view(batch_size,-1)
         batch_entity_emb = self.dropout(batch_entity_emb)
         batch_entity_emb = self.relu(batch_entity_emb)
-
-
-        # diag_entity_mask = []
-        # for i in range(batch_size):
-        #    diag_entity_mask_.append(torch.diag(entity_mask[i]).cpu().numpy())
-        # diag_entity_mask = torch.tensor(diag_entity_mask_).cuda()
-        
-        # diag_entity_seg_pos_ = []
-        # for i in range(batch_size):
-        #    diag_entity_seg_pos_.append(torch.diag(entity_seg_pos[i]).cpu().numpy())
-        # diag_entity_seg_pos = torch.tensor(diag_entity_seg_pos_,dtype=torch.float).cuda()
-        
-        # print(entity_seg_pos.size())
-        # print(len(diag_entity_seg_pos_[0]))
-        # print(len(diag_entity_seg_pos_))
-        # print(encoded_layers.size())
-        # Get all embedding of entity
-        # batch_entity_emb = torch.matmul(diag_entity_mask, encoded_layers)
-        
-        # Get start embedding of entity with marker
-        #batch_entity_emb = torch.matmul(diag_entity_seg_pos, encoded_layers)
-        
-        """
-            Strategy 0: concat start entity marker
-            Bug: TODO, get [1536,768,1536,1536,...]
-        """
-        #concat_tag = 0
-        #if concat_tag == 1:
-        #    entity_marker_emb_ = []
-        #    for i in range(batch_size):
-        #        marker_index = entity_seg_pos[i]
-        #        per_encoded_layer = encoded_layers[i]
-        #        entity_marker_emb_.append(torch.index_select(per_encoded_layer, 0, torch.nonzero(marker_index).view(-1)).view(-1).detach().cpu().numpy())
-        #    entity_emb_output = torch.tensor(entity_marker_emb_).cuda()
-        #    entity_emb_output = self.dropout(entity_emb_output)
-        
-        """
-            Strategy 1: sum all the emb of entity 
-        """
-        # entity_emb_output = batch_entity_emb.sum(dim=1)
-        # entity_emb_output = self.dropout(entity_emb_output)
-        
-        """
-            Strategy 2: pooling the emb of entity 
-                        get the max value along the embedding axis
-        """
-        #pooling = nn.MaxPool1d(kernel_size=max_seq_length, stride=1)
-        #entity_emb_output = pooling( batch_entity_emb.permute(0,2,1) ).squeeze()
-        #entity_emb_output = self.dropout(entity_emb_output) 
-        
-        """
-            Strategy 3: mention pooling + position embedding
-        """
-        #entity_span1_pos = self.layernorm_span(entity_span1_pos)
-        #entity_span2_pos = self.layernorm_span(entity_span2_pos)
-        #entity_span_concat = torch.cat((entity_span1_pos,entity_span2_pos),1)
-        #entity_emb_output = torch.cat((entity_span_concat, entity_emb_output),1)
-        
-        """
-            Strategy TODO
-        """
-        #entity_emb_output = self.layernorm(entity_emb_output)
-        #entity_emb_output = self.layernorm_concat(entity_emb_output)
-        #entity_emb_output = self.relu(entity_emb_output)
-        #import pdb;pdb.set_trace()
-
-        """
-            Strategy 4 concatenation of two entity marker emb
-        """
-        #print(batch_entity_emb.size())
-        #entity_emb_output=batch_entity_emb.view(-1)
-
-
-
-        #representation = entity_emb_output
         representation = batch_entity_emb
-        # Classifier without concat embedding[hidden_size]
-        #logits = self.classifier(representation)
         logits = self.classifier_concat(representation)
-        # Classifier with concat embedding[hidden_size * 2]
-        #logits = self.classifier_concat(representation)
-         
-        # Classifier with [CLS]
-        #pooled_output = self.dropout(pooled_output)
-        #logits = self.classifier(pooled_output)
-        
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
@@ -1196,18 +1102,47 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
 
         self.apply(self.init_bert_weights)
 
-    def getGraph(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None,entity_list = None, entity_representation = None, labels = None):
+    def get_representation(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None,entity_list = None, entity_representation = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
                                                   token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]
+        for i in range(batch_size):
+            mark = 0
+            e1_s = 0
+            e1_e = 0
+            e2_s = 0
+            e2_e = 0
+            for j in range(max_seq_length):
+                if mark == 0:
+                    if entity_seg_pos[i][j] == 1:
+                        e1_s = j
+                        e1_re = encoded_layers[i][j]
+                    if entity_seg_pos[i][j] == 2:
+                        e1_e = j
+                        mark = 1
+                else:
+                    if entity_seg_pos[i][j] == 1:
+                        e2_s = j
+                        e2_re = encoded_layers[i][j]
+                    if entity_seg_pos[i][j] == 2:
+                        e2_e = j
+                        mark = 1
+            e1_id = input_ids[e1_s + 1:e1_e]
+            e2_id = input_ids[e2_s + 1:e2_e]
+            e1 = gcn_sem_run_classifier.convert_id_list_to_str(e1_id)
+            e2 = gcn_sem_run_classifier.convert_id_list_to_str(e2_id)
+            entity_representation[entity_list.index(e1)] += e1_re
+            entity_representation[entity_list.index(e2)] += e2_re
 
 
 
-    def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, labels = None):
+
+    def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, entity_representation = None, spectral = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,
                                                   token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0], entity_mask.shape[1]
-
+        print(entity_representation)
+        print(spectral)
 
 
 class BertForMultipleChoice(BertPreTrainedModel):

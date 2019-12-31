@@ -1127,12 +1127,15 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
                     if entity_seg_pos[i][j] == 2:
                         e2_e = j
                         mark = 1
-            e1_id = input_ids[e1_s + 1:e1_e]
-            e2_id = input_ids[e2_s + 1:e2_e]
+            e1_id = list(input_ids[i][e1_s+1:e1_e-1].item().cpu())
+            e2_id = list(input_ids[i][e2_s+1:e2_e-1].item().cpu())
+            print(e1_id)
+            print(e2_id)
             e1 = gcn_sem_run_classifier.convert_id_list_to_str(e1_id)
             e2 = gcn_sem_run_classifier.convert_id_list_to_str(e2_id)
             entity_representation[entity_list.index(e1)] += e1_re
             entity_representation[entity_list.index(e2)] += e2_re
+            time.sleep(100)
 
     def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, entity_representation = None, spectral = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,

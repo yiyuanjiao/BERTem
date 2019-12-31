@@ -486,7 +486,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             print(example.text_a.split())
             print('````````````````````````````')
             print(tokens_a)
-            time.sleep(100)
         #entity_set.add(new_entity0)
         #entity_set.add(new_entity1)
         #entity_pair_set.add((new_entity0, new_entity1))
@@ -595,10 +594,10 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         entity_seg_pos_ = [0] * len(input_ids)
         entity1_start, entity1_end = new_entity_pos[0][0], new_entity_pos[0][1] 
         entity_seg_pos_[entity1_start+1] = entity_start_pos_tag
-        entity_seg_pos_[entity1_end + 1] = entity_end_pos_tag
+        entity_seg_pos_[entity1_end] = entity_end_pos_tag
         entity2_start, entity2_end = new_entity_pos[1][0], new_entity_pos[1][1] 
         entity_seg_pos_[entity2_start+1] = entity_start_pos_tag
-        entity_seg_pos_[entity2_end + 1] = entity_end_pos_tag
+        entity_seg_pos_[entity2_end] = entity_end_pos_tag
 
         # Strategy 3
         entity_span1_pos = [0] * len(input_ids)
@@ -1059,7 +1058,7 @@ def main():
             tr_preds = []
 
             train_entity_representation = torch.zeros(len(train_entity_list), model.config.hidden_size)
-            for step, batch in enumerate(tqdm(train_dataloader), desc="Iteration"):
+            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
                 model.get_representation(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_list, train_entity_representation, labels=None)

@@ -482,10 +482,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             assert(old_entity1 == new_entity1)
         except:
             import pdb;pdb.set_trace()
-        if new_entity0=='nuturingrole' or new_entity1=='nuturingrole':
-            print(example.text_a.split())
-            print('````````````````````````````')
-            print(tokens_a)
         #entity_set.add(new_entity0)
         #entity_set.add(new_entity1)
         #entity_pair_set.add((new_entity0, new_entity1))
@@ -555,12 +551,12 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         input_ids += padding
         input_mask += padding
         segment_ids += padding
-        entity_token_ids0 = input_ids[new_entity_pos[0][0]+2:new_entity_pos[0][1]+1]
-        entity_token_ids1 = input_ids[new_entity_pos[1][0]+2:new_entity_pos[1][1]+1]
-        print("``````````````````````````````````")
-        print(entity_token_ids0)
-        print(entity_token_ids1)
-        time.sleep(100)
+        entity_token_ids0 = input_ids[new_entity_pos[0][0]+2:new_entity_pos[0][1]]
+        entity_token_ids1 = input_ids[new_entity_pos[1][0]+2:new_entity_pos[1][1]]
+        #print("``````````````````````````````````")
+        #print(entity_token_ids0)
+        #print(entity_token_ids1)
+        #time.sleep(100)
         e0 = convert_id_list_to_str(entity_token_ids0)
         e1 = convert_id_list_to_str(entity_token_ids1)
         entity_set.add(e0)
@@ -1066,6 +1062,11 @@ def main():
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
                 model.get_representation(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, train_entity_list, train_entity_representation, labels=None)
+                print("````````````````````````````````````````")
+                print(len(train_entity_representation))
+                print(len(train_entity_representation[0]))
+                print(train_entity_representation[0])
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             train_degree_rep = torch.Tensor(len(train_entity_list), model.config.hidden_size)
             train_degree_rep.copy_(train_degree)
             train_entity_representation = train_entity_representation.div(train_degree_rep)

@@ -1116,29 +1116,29 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
                 if mark == 0:
                     if entity_seg_pos[i][j] == 1:
                         e1_s = j
-                        e1_re = encoded_layers[i][j]
+                        e1_re = encoded_layers[i][j].cpu()
                     if entity_seg_pos[i][j] == 2:
                         e1_e = j
                         mark = 1
                 else:
                     if entity_seg_pos[i][j] == 1:
                         e2_s = j
-                        e2_re = encoded_layers[i][j]
+                        e2_re = encoded_layers[i][j].cpu()
                     if entity_seg_pos[i][j] == 2:
                         e2_e = j
                         mark = 1
-            e1_id = input_ids[i][e1_s+1:e1_e-1].cpu().tolist()
-            e2_id = input_ids[i][e2_s+1:e2_e-1].cpu().tolist()
+            e1_id = input_ids[i][e1_s+1:e1_e].cpu().tolist()
+            e2_id = input_ids[i][e2_s+1:e2_e].cpu().tolist()
             #e1_id = e1_id.tolist()
             #e2_id = e2_id.tolist()
             
-            print(e1_id)
-            print(e2_id)
             e1 = gcn_sem_run_classifier.convert_id_list_to_str(e1_id)
             e2 = gcn_sem_run_classifier.convert_id_list_to_str(e2_id)
             entity_representation[entity_list.index(e1)] += e1_re
             entity_representation[entity_list.index(e2)] += e2_re
-            time.sleep(100)
+            print("JJJJJJJJJJ")
+            print(i)
+            #time.sleep(100)
 
     def forward(self,input_ids, token_type_ids=None, attention_mask=None, entity_mask=None, entity_seg_pos=None, entity_span1_pos=None, entity_span2_pos=None, entity_representation = None, spectral = None, labels = None):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos,

@@ -671,7 +671,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
                               entity_span1_pos=entity_span1_pos,
                               entity_span2_pos=entity_span2_pos))
     entity_list = list(entity_set)
-    adjacency = torch.zeros(len(entity_list),len(entity_list))
+    adjacency = torch.zeros(len(entity_list), len(entity_list))
     for entity_pair in enumerate(entity_pair_set):
         adjacency[entity_list.index(entity_pair[1][0])][entity_list.index(entity_pair[1][1])] = 1
         adjacency[entity_list.index(entity_pair[1][1])][entity_list.index(entity_pair[1][0])] = 1

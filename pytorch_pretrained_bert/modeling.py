@@ -1127,8 +1127,11 @@ class BertForSequenceClassificationWithGCN(BertPreTrainedModel):
                     if entity_seg_pos[i][j] == 2:
                         e2_e = j
                         mark = 1
-            e1_id = list(input_ids[i][e1_s+1:e1_e-1].item().cpu())
-            e2_id = list(input_ids[i][e2_s+1:e2_e-1].item().cpu())
+            e1_id = input_ids[i][e1_s+1:e1_e-1].cpu().tolist()
+            e2_id = input_ids[i][e2_s+1:e2_e-1].cpu().tolist()
+            #e1_id = e1_id.tolist()
+            #e2_id = e2_id.tolist()
+            
             print(e1_id)
             print(e2_id)
             e1 = gcn_sem_run_classifier.convert_id_list_to_str(e1_id)

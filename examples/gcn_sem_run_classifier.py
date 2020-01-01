@@ -557,6 +557,10 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         segment_ids += padding
         entity_token_ids0 = input_ids[new_entity_pos[0][0]:new_entity_pos[0][1]]
         entity_token_ids1 = input_ids[new_entity_pos[1][0]:new_entity_pos[1][1]]
+        print("``````````````````````````````````")
+        print(entity_token_ids0)
+        print(entity_token_ids1)
+        time.sleep(100)
         e0 = convert_id_list_to_str(entity_token_ids0)
         e1 = convert_id_list_to_str(entity_token_ids1)
         entity_set.add(e0)

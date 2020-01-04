@@ -22,6 +22,7 @@ import csv
 import logging
 import os
 import random
+import gc
 
 import sys
 sys.path.append('..')
@@ -1058,6 +1059,7 @@ def main():
             tr_preds = []
 
             train_entity_representation = torch.zeros(len(train_entity_list), model.config.hidden_size)
+            print(train_entity_representation)
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
@@ -1065,7 +1067,6 @@ def main():
                 print("````````````````````````````````````````")
                 print(len(train_entity_representation))
                 print(len(train_entity_representation[0]))
-                print(train_entity_representation[0])
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             train_degree_rep = torch.Tensor(len(train_entity_list), model.config.hidden_size)
             train_degree_rep.copy_(train_degree)

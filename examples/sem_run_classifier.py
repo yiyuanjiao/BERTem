@@ -27,6 +27,7 @@ import sys
 sys.path.append('..')
 
 import copy
+import time
 
 import numpy as np
 import torch
@@ -555,7 +556,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         entity_mask = [0] * len(input_ids)
         for entity in new_entity_pos:
             start, end = entity[0],entity[1]
-            for i in range(start, end):
+            for i in range(start+1, end-1):
                 # [CLS], need to +1 offset
                 entity_mask[i+1] = entity_mask_tag
         
@@ -676,6 +677,14 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 
 def simple_accuracy(preds, labels):
     return (preds == labels).mean()
+
+
+def write_error_preds_input_ids(preds, labels,input_ids):
+    f = open("error_preds_input_ids","w")
+    for i in range(len(preds)):
+        if preds[i]!=labels[i]:
+            f.write(str(i)+","+str(labels[i])+","+str(preds[i])+'\n')
+    f.close()
 
 
 def acc_and_f1(preds, labels):
@@ -919,6 +928,20 @@ def main():
     if args.fp16:
         model.half()
     model.to(device)
+    #I = torch.ones(2304)
+    #I = I.diag().float().cuda()
+    #I = model.classifier_concat(I).cpu()
+    #I1=I[0:768,:]
+    #I2=I[768:1536,:]
+    #I3=I[1536:2304,:]
+    #norm_I1 = torch.norm(I1)
+    #norm_I2 = torch.norm(I2)
+    #norm_I3 = torch.norm(I3)
+    #print(norm_I1)
+    #print(norm_I2)
+    #print(norm_I3)
+    #print("```````````````````````````````````````````````````")
+    #time.sleep(10000)
     if args.local_rank != -1:
         try:
             from apex.parallel import DistributedDataParallel as DDP
@@ -993,8 +1016,10 @@ def main():
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
         
-
+    if args.do_eval:
         # do eval
+        if not args.do_train:
+            args.num_train_epochs = 1
         eval_examples = processor.get_dev_examples(args.data_dir)
         eval_features = convert_examples_to_features(
             eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
@@ -1024,129 +1049,134 @@ def main():
 
         #epoch_label_ids = []
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
-            model.train()
-            epoch_step=0
-            tr_loss = 0
-            nb_tr_examples, nb_tr_steps = 0, 0
-            epoch_label_ids = []
-            tr_preds = []
-            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
-                batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
-                # define a new function to compute loss values for both output_modes
-                logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, labels=None)
+            if args.do_train:
+                model.train()
+                epoch_step=0
+                tr_loss = 0
+                nb_tr_examples, nb_tr_steps = 0, 0
+                epoch_label_ids = []
+                tr_preds = []
+                for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
+                    batch = tuple(t.to(device) for t in batch)
+                    input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids = batch
+                    # define a new function to compute loss values for both output_modes
+                    logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, labels=None)
 
-                if output_mode == "classification":
-                    loss_fct = CrossEntropyLoss()
-                    loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
-                elif output_mode == "regression":
-                    loss_fct = MSELoss()
-                    loss = loss_fct(logits.view(-1), label_ids.view(-1))
+                    if output_mode == "classification":
+                        loss_fct = CrossEntropyLoss()
+                        loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
+                    elif output_mode == "regression":
+                        loss_fct = MSELoss()
+                        loss = loss_fct(logits.view(-1), label_ids.view(-1))
 
-                if n_gpu > 1:
-                    loss = loss.mean() # mean() to average on multi-gpu.
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
+                    if n_gpu > 1:
+                        loss = loss.mean() # mean() to average on multi-gpu.
+                    if args.gradient_accumulation_steps > 1:
+                        loss = loss / args.gradient_accumulation_steps
 
-                if args.fp16:
-                    optimizer.backward(loss)
-                else:
-                    loss.backward()
-
-                tr_loss += loss.item()
-                nb_tr_examples += input_ids.size(0)
-                nb_tr_steps += 1
-                if (step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
-                        # modify learning rate with special warm up BERT uses
-                        # if args.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = args.learning_rate * warmup_linear.get_lr(global_step, args.warmup_proportion)
-                        for param_group in optimizer.param_groups:
-                            param_group['lr'] = lr_this_step
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    global_step += 1
-                    epoch_step += 1
-                if len(tr_preds) == 0:
-                    tr_preds.append(logits.detach().cpu().numpy())
-                else:
-                    tr_preds[0] = np.append(
-                        tr_preds[0], logits.detach().cpu().numpy(), axis=0)
-                if len(epoch_label_ids) == 0:
-                    epoch_label_ids.append(label_ids.view(-1).cpu().numpy())
-                else:
-                    epoch_label_ids[0] = np.append(
-                        epoch_label_ids[0], label_ids.view(-1).cpu().numpy(), axis=0)
-                logger.info(" batch_loss = %s",loss.item())
-            tr_preds = tr_preds[0]
-            epoch_label_ids = epoch_label_ids[0]
-            if output_mode == "classification":
-                tr_preds = np.argmax(tr_preds, axis=1)
-            elif output_mode == "regression":
-                tr_preds = np.squeeze(tr_preds)
-            tr_result = compute_metrics(task_name, tr_preds, epoch_label_ids)
-            train_loss = tr_loss / epoch_step if args.do_train else None
+                        optimizer.backward(loss)
+                    else:
+                        loss.backward()
 
-            tr_result['train_loss'] = train_loss
-            for key in sorted(tr_result.keys()):
-                logger.info("  %s = %s", key, str(tr_result[key]))
+                    tr_loss += loss.item()
+                    nb_tr_examples += input_ids.size(0)
+                    nb_tr_steps += 1
+                    if (step + 1) % args.gradient_accumulation_steps == 0:
+                        if args.fp16:
+                            # modify learning rate with special warm up BERT uses
+                            # if args.fp16 is False, BertAdam is used that handles this automatically
+                            lr_this_step = args.learning_rate * warmup_linear.get_lr(global_step, args.warmup_proportion)
+                            for param_group in optimizer.param_groups:
+                                param_group['lr'] = lr_this_step
+                        optimizer.step()
+                        optimizer.zero_grad()
+                        global_step += 1
+                        epoch_step += 1
+                    if len(tr_preds) == 0:
+                        tr_preds.append(logits.detach().cpu().numpy())
+                    else:
+                        tr_preds[0] = np.append(
+                            tr_preds[0], logits.detach().cpu().numpy(), axis=0)
+                    if len(epoch_label_ids) == 0:
+                        epoch_label_ids.append(label_ids.view(-1).cpu().numpy())
+                    else:
+                        epoch_label_ids[0] = np.append(
+                            epoch_label_ids[0], label_ids.view(-1).cpu().numpy(), axis=0)
+                    logger.info(" batch_loss = %s",loss.item())
+                tr_preds = tr_preds[0]
+                epoch_label_ids = epoch_label_ids[0]
+                if output_mode == "classification":
+                    tr_preds = np.argmax(tr_preds, axis=1)
+                elif output_mode == "regression":
+                    tr_preds = np.squeeze(tr_preds)
+                tr_result = compute_metrics(task_name, tr_preds, epoch_label_ids)
+                train_loss = tr_loss / epoch_step if args.do_train else None
+
+                tr_result['train_loss'] = train_loss
+                for key in sorted(tr_result.keys()):
+                    logger.info("  %s = %s", key, str(tr_result[key]))
 
             #eval
-            model.eval()
-            eval_loss = 0
-            nb_eval_steps = 0
-            preds = []
-            for input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids in tqdm(
-                    eval_dataloader, desc="Evaluating"):
-                input_ids = input_ids.to(device)
-                input_mask = input_mask.to(device)
-                entity_mask = entity_mask.to(device)
-                entity_seg_pos = entity_seg_pos.to(device)
-                entity_span1_pos = entity_span1_pos.to(device)
-                entity_span2_pos = entity_span2_pos.to(device)
-                segment_ids = segment_ids.to(device)
-                label_ids = label_ids.to(device)
-                with torch.no_grad():
-                    logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos,
-                                   entity_span2_pos, labels=None)
-                    # logits = model(input_ids, segment_ids, input_mask, labels=None)
+            if args.do_eval:
+                model.eval()
+                eval_loss = 0
+                nb_eval_steps = 0
+                preds = []
+                for input_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos, entity_span2_pos, segment_ids, label_ids in tqdm(
+                        eval_dataloader, desc="Evaluating"):
+                    input_ids = input_ids.to(device)
+                    input_mask = input_mask.to(device)
+                    entity_mask = entity_mask.to(device)
+                    entity_seg_pos = entity_seg_pos.to(device)
+                    entity_span1_pos = entity_span1_pos.to(device)
+                    entity_span2_pos = entity_span2_pos.to(device)
+                    segment_ids = segment_ids.to(device)
+                    label_ids = label_ids.to(device)
+                    with torch.no_grad():
+                        logits = model(input_ids, segment_ids, input_mask, entity_mask, entity_seg_pos, entity_span1_pos,
+                                       entity_span2_pos, labels=None)
+                        # logits = model(input_ids, segment_ids, input_mask, labels=None)
 
-                # create eval loss and other metric required by the task
+                    # create eval loss and other metric required by the task
+                    if output_mode == "classification":
+                        loss_fct = CrossEntropyLoss()
+                        tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
+                    elif output_mode == "regression":
+                        loss_fct = MSELoss()
+                        tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
+
+                    eval_loss += tmp_eval_loss.mean().item()
+                    nb_eval_steps += 1
+                    if len(preds) == 0:
+                        preds.append(logits.detach().cpu().numpy())
+                    else:
+                        preds[0] = np.append(
+                            preds[0], logits.detach().cpu().numpy(), axis=0)
+                eval_loss = eval_loss / nb_eval_steps
+                preds = preds[0]
                 if output_mode == "classification":
-                    loss_fct = CrossEntropyLoss()
-                    tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
+                    preds = np.argmax(preds, axis=1)
                 elif output_mode == "regression":
-                    loss_fct = MSELoss()
-                    tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
+                    preds = np.squeeze(preds)
+                result = compute_metrics(task_name, preds, eval_label_ids.numpy())
+                #loss = tr_loss / global_step if args.do_train else None
+                print(preds)
+                print(eval_label_ids.numpy())
+                write_error_preds_input_ids(preds,eval_label_ids.numpy(),eval_input_ids)
 
-                eval_loss += tmp_eval_loss.mean().item()
-                nb_eval_steps += 1
-                if len(preds) == 0:
-                    preds.append(logits.detach().cpu().numpy())
-                else:
-                    preds[0] = np.append(
-                        preds[0], logits.detach().cpu().numpy(), axis=0)
-            eval_loss = eval_loss / nb_eval_steps
-            preds = preds[0]
-            if output_mode == "classification":
-                preds = np.argmax(preds, axis=1)
-            elif output_mode == "regression":
-                preds = np.squeeze(preds)
-            result = compute_metrics(task_name, preds, eval_label_ids.numpy())
-            loss = tr_loss / global_step if args.do_train else None
+                result['eval_loss'] = eval_loss
+                result['global_step'] = global_step
+#                 result['loss'] = loss
 
-            result['eval_loss'] = eval_loss
-            result['global_step'] = global_step
-            result['loss'] = loss
-
-            output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-            with open(output_eval_file, "a") as writer:
-                logger.info("***** Eval results *****")
-                for key in sorted(result.keys()):
-                    logger.info("  %s = %s", key, str(result[key]))
-                    writer.write("%s = %s\n" % (key, str(result[key])))
-                for i in range(0,10):
-                    writer.write("\n")
+                output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
+                with open(output_eval_file, "a") as writer:
+                    logger.info("***** Eval results *****")
+                    for key in sorted(result.keys()):
+                        logger.info("  %s = %s", key, str(result[key]))
+                        writer.write("%s = %s\n" % (key, str(result[key])))
+                    for i in range(0,10):
+                        writer.write("\n")
 
 
     if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):

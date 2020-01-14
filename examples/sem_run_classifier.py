@@ -552,13 +552,37 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         
 
         # Used for mention pooling
+        #entity_mask_tag = 1
+        #entity_mask = [0] * len(input_ids)
+        #for entity in new_entity_pos:
+        #    start, end = entity[0],entity[1]
+        #    for i in range(start+1, end-1):
+        #        # [CLS], need to +1 offset
+        #        entity_mask[i+1] = entity_mask_tag
+
+
+
+        # #two entity mask
+
         entity_mask_tag = 1
-        entity_mask = [0] * len(input_ids)
-        for entity in new_entity_pos:
-            start, end = entity[0],entity[1]
-            for i in range(start+1, end-1):
-                # [CLS], need to +1 offset
-                entity_mask[i+1] = entity_mask_tag
+        entity1_mask = [0] * len(input_ids)
+        entity2_mask = [0] * len(input_ids)
+        # mask all token in entity
+        #entity1 = new_entity_pos[0]
+        #start1, end1 = entity1[0], entity1[1]
+        #for i in range(start1, end1):
+        #    entity1_mask[i+1] = entity_mask_tag
+        #entity2 = new_entity_pos[1]
+        #start2, end2 = entity2[0], entity2[1]
+        #for i in range(start2, end2):
+        #    entity2_mask[i+1] = entity_mask_tag
+        
+        # mask s1 and s2 in entity
+        entity1_mask[new_entity_pos[0][0]+1] = entity_mask_tag
+        entity2_mask[new_entity_pos[1][0]+1] = entity_mask_tag
+        entity_mask = []
+        entity_mask.append(entity1_mask)
+        entity_mask.append(entity2_mask)
         
         """
             Different position embedding
@@ -614,7 +638,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
-        assert len(entity_mask) == max_seq_length
+        assert len(entity_mask[0]) == max_seq_length
+        assert len(entity_mask[1]) == max_seq_length
         assert len(entity_seg_pos) == max_seq_length
         assert len(entity_seg_pos_) == max_seq_length
         assert len(entity_span1_pos) == max_seq_length

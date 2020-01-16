@@ -111,6 +111,9 @@ class BertTokenizer(object):
             entity0_end = entity_pos[0][1]
             entity1_start = entity_pos[1][0]
             entity1_end = entity_pos[1][1]
+        
+        entity_end = entity0_end if entity0_end>entity1_end else entity1_end
+            
         if self.do_basic_tokenize:
             basic_tokens = text.split()
             basic_tokens = [word.lower() for word in basic_tokens]
@@ -131,8 +134,10 @@ class BertTokenizer(object):
                         entity_pos[1][1] = len(split_tokens)
                 for sub_token in wordpiece_tokens:
                     split_tokens.append(sub_token)
-            if i+1 == entity1_end:
-                entity_pos[1][1] = len(split_tokens)
+            if i+1 == entity_end:
+                if entity_end == entity0_end:
+                    entity_pos[0][1] = len(split_tokens)
+                else: entity_pos[1][1] = len(split_tokens)
         else:
             split_tokens = self.wordpiece_tokenizer.tokenize(text)
         if entity_pos == None:

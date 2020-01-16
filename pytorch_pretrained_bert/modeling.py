@@ -1048,7 +1048,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.relu = nn.ReLU()
         
         self.classifier = nn.Linear(config.hidden_size, num_labels)
-        self.classifier_concat = nn.Linear(config.hidden_size * 3, num_labels)
+        self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
         
         self.apply(self.init_bert_weights)
@@ -1057,26 +1057,90 @@ class BertForSequenceClassification(BertPreTrainedModel):
         encoded_layers, pooled_output = self.bert(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids, attention_mask, output_all_encoded_layers=False)
         batch_size, max_seq_length = entity_mask.shape[0],entity_mask.shape[1]
 
+
+        # tese representation similarity
+   
+        #embedding = self.bert.embeddings(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids)
+        #token_num = attention_mask[0].sum(dim=0)[0]
+        #re_dis = torch.zeros(token_num, token_num)
+        #em_dis = torch.zeros(token_num, token_num)
+        #re = encoded_layers[0]
+        #em = embedding[0]
+        #for i in range(token_num):
+        #    for j in range(i+1,token_num):
+        #        d = re[i]-re[j]
+        #        d = d.mul(d).cpu()
+        #        d = d.sum()
+        #        #print(type(d))
+        #        #print(d)
+        #        #time.sleep(10000)
+        #        re_dis[i][j] = d
+        #        re_dis[j][i] = d
+        #        d = em[i] - em[j]
+        #        d = d.mul(d).cpu()
+        #        d = d.sum()
+        #        em_dis[i][j] = d
+        #        em_dis[j][i] = d
+        #re_dis = re_dis.detach().numpy()
+        #em_dis = em_dis.detach().numpy()
+        #re_n = np.linalg.norm(re_dis)
+        #re_norm = re_dis/re_n
+        #em_n = np.linalg.norm(em_dis)
+        #em_norm = em_dis/em_n
+        #print("``````````````````````````")
+        #print(re_norm)
+        #print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        #print(em_norm)
+        #time.sleep(10000)
+        
+
         # connection cls entity start mark representation
-        mark = 0
-        for i in range(batch_size):
-            sample_entity_emb =[]
-            sample_entity_emb.append(encoded_layers[i][0])
-            for j in range(max_seq_length):
-                if entity_seg_pos[i][j] == 1:
-                    sample_entity_emb.append(encoded_layers[i][j])
-            if mark == 0:
-                batch_entity_emb_ = torch.cat((torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0),sample_entity_emb[2]),0)
-                mark=1
-            else:
-                batch_entity_emb_ = torch.cat((batch_entity_emb_, torch.cat((torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0),sample_entity_emb[2]),0)),0)
+        #mark = 0
+        #for i in range(batch_size):
+        #    sample_entity_emb =[]
+        #    sample_entity_emb.append(encoded_layers[i][0])
+        #    for j in range(max_seq_length):
+        #        if entity_seg_pos[i][j] == 1:
+        #            sample_entity_emb.append(encoded_layers[i][j])
+        #    if mark == 0:
+        #        batch_entity_emb_ = torch.cat((torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0),sample_entity_emb[2]),0)
+        #        mark=1
+        #    else:
+        #        batch_entity_emb_ = torch.cat((batch_entity_emb_, torch.cat((torch.cat((sample_entity_emb[0],sample_entity_emb[1]),0),sample_entity_emb[2]),0)),0)
         #batch_entity_emb_ = encoded_layers[:,1:2,:]
+        cls_representation = encoded_layers[:,0:1,:].view(batch_size,-1)
+        diag_entity0_mask_ = []
+        diag_entity1_mask_ = []
+        for i in range(batch_size):
+            diag_entity0_mask_.append(torch.diag(entity_mask[i][0]).cpu().numpy())
+            diag_entity1_mask_.append(torch.diag(entity_mask[i][1]).cpu().numpy())
+        diag_entity0_mask = torch.tensor(diag_entity0_mask_).cuda()
+        diag_entity1_mask = torch.tensor(diag_entity1_mask_).cuda()
+        entity0_output = torch.matmul(diag_entity0_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
+        entity1_output = torch.matmul(diag_entity1_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
+        entity_output = torch.cat((entity0_output, entity1_output),1)
+        batch_entity_emb_ = entity_output
 
         # connection cls with entity start embeding
-        embedding = self.bert.embeddings(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids)
-        print(embedding.size())
-        time.sleep(1000)
-
+        #cls_representation = encoded_layers[:,0:1,:].view(batch_size,-1)
+        #embedding = self.bert.embeddings(input_ids, entity_seg_pos, entity_span1_pos, entity_span2_pos, token_type_ids)
+        #diag_entity0_mask_ = []
+        #diag_entity1_mask_ = []
+        #for i in range(batch_size):
+        #    diag_entity0_mask_.append(torch.diag(entity_mask[i][0]).cpu().numpy())
+        #    diag_entity1_mask_.append(torch.diag(entity_mask[i][1]).cpu().numpy())
+        #diag_entity0_mask = torch.tensor(diag_entity0_mask_).cuda()
+        #diag_entity1_mask = torch.tensor(diag_entity1_mask_).cuda()
+        #batch_entity0_emb = torch.matmul(diag_entity0_mask, embedding)
+        #batch_entity1_emb = torch.matmul(diag_entity1_mask, embedding)
+        #entity_token_num = entity_mask.sum(dim=2)
+        #entity0_output = batch_entity0_emb.sum(dim=1)
+        #entity1_output = batch_entity1_emb.sum(dim=1)
+        #entity0_output = entity0_output.div(entity_token_num[:,0:1])
+        #entity1_output = entity1_output.div(entity_token_num[:,1:2])
+        #entity_output = torch.cat((entity0_output, entity1_output),1)
+        #batch_entity_emb_ = torch.cat((cls_representation, entity_output),1) 
+        #batch_entity_emb_ = entity_output
 
 
         batch_entity_emb = batch_entity_emb_.view(batch_size,-1)

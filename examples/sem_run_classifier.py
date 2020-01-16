@@ -28,6 +28,7 @@ sys.path.append('..')
 
 import copy
 import time
+import json
 
 import numpy as np
 import torch
@@ -176,7 +177,52 @@ class SemProcessor(DataProcessor):
                 InputExample(guid=guid, text_a=text_a, label=label, entity_pos = entity_pos))
         return examples
 
+class TacredProcessor(DataProcessor):
+    """Processor for the TACRED dataset."""
 
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        logger.info("LOOKING AT {}".format(os.path.join(data_dir, "train.jsonl")))
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train_dev.jsonl")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.jsonl")), "dev")
+    
+    def get_test_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "test.jsonl")), "test")
+
+    def get_labels(self):
+        """See base class."""
+        return ['per:parents', 'per:country_of_birth', 'org:political/religious_affiliation', 'org:parents', 'org:members', 'per:schools_attended', 'org:shareholders', 'per:stateorprovince_of_death', 'per:age', 'per:city_of_death', 'per:siblings', 'per:date_of_birth', 'org:founded', 'per:stateorprovince_of_birth', 'per:origin', 'per:charges', 'per:children', 'per:title', 'per:countries_of_residence', 'org:top_members/employees', 'per:religion', 'per:country_of_death', 'per:employee_of', 'no_relation', 'per:stateorprovinces_of_residence', 'org:city_of_headquarters', 'org:dissolved', 'per:date_of_death', 'per:other_family', 'per:alternate_names', 'org:number_of_employees/members', 'per:spouse', 'per:cause_of_death', 'org:alternate_names', 'org:founded_by', 'org:stateorprovince_of_headquarters', 'per:city_of_birth', 'org:subsidiaries', 'org:website', 'org:member_of', 'per:cities_of_residence', 'org:country_of_headquarters']
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, i)
+            line = json.loads(line[0])
+            text_a = ' '.join(line['tokens'])
+            label = line['label']
+            entity_pos = line['entities']
+            # 假设entity之间不重叠
+            if entity_pos[0][0] > entity_pos[0][1]:
+                tmp = entity_pos[0][0]
+                entity_pos[0][0] = entity_pos[0][1]
+                entity_pos[0][1] = tmp
+            if entity_pos[1][0] > entity_pos[1][1]:
+                tmp = entity_pos[1][0]
+                entity_pos[1][0] = entity_pos[1][1]
+                entity_pos[1][1] = tmp
+            #entity_pos = sorted(entity_pos) 
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, label=label, entity_pos = entity_pos))
+        return examples
+    
+    
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
 
@@ -467,21 +513,22 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         if '##' in new_entity0 or '##' in new_entity1:
             new_entity0 = new_entity0.replace('#','')
             new_entity1 = new_entity1.replace('#','')
-        
-        try:
-            assert(old_entity0 == new_entity0)
-            assert(old_entity1 == new_entity1)
-        except:
-            print(new_entity_pos[0][0])
-            print(new_entity_pos[0][1])
-            print(new_entity_pos[1][0])
-            print(new_entity_pos[1][1])
-            print(old_entity0)
-            print(new_entity0)
-            print(old_entity1)
-            print(new_entity1)
-            print("`````````````````````````````````````````````")
-            import pdb;pdb.set_trace()
+        if '[UNK]' not in new_entity0 and '[UNK]' not in new_entity1 and '#' not in old_entity0 and '#' not in old_entity1: 
+            try:
+                assert(old_entity0 == new_entity0)
+                assert(old_entity1 == new_entity1)
+            except:
+                print(new_entity_pos[0][0])
+                print(new_entity_pos[0][1])
+                print(new_entity_pos[1][0])
+                print(new_entity_pos[1][1])
+                print(old_entity0)
+                print(new_entity0)
+                print(old_entity1)
+                print(new_entity1)
+                print(tokens_a)
+                print("`````````````````````````````````````````````")
+                import pdb;pdb.set_trace()
         
         # Entity marker
         tokens_a_ = copy.deepcopy(tokens_a) 
@@ -489,16 +536,30 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         entity1_start, entity1_end = new_entity_pos[0][0], new_entity_pos[0][1] 
         entity2_start, entity2_end = new_entity_pos[1][0], new_entity_pos[1][1] 
         
-        tokens_a.insert(entity1_start, '<s1>') 
-        new_entity_pos[0][0] = entity1_start
-        tokens_a.insert(entity1_end+1, '<e1>')
-        new_entity_pos[0][1] = entity1_end+1+1
-        tokens_a.insert(entity2_start+2, '<s2>')
-        new_entity_pos[1][0] = entity2_start+2
-        tokens_a.insert(entity2_end+3,'<e2>')
-        new_entity_pos[1][1] = entity2_end+3+1
+        if entity1_start < entity2_start :     
+            tokens_a.insert(entity1_start, '<s1>') 
+            new_entity_pos[0][0] = entity1_start
+            tokens_a.insert(entity1_end+1, '<e1>')
+            new_entity_pos[0][1] = entity1_end+1+1
+            tokens_a.insert(entity2_start+2, '<s2>')
+            new_entity_pos[1][0] = entity2_start+2
+            tokens_a.insert(entity2_end+3,'<e2>')
+            new_entity_pos[1][1] = entity2_end+3+1
+            
+        else:
+            tokens_a.insert(entity2_start, '<s2>') 
+            new_entity_pos[0][0] = entity2_start
+            tokens_a.insert(entity2_end+1, '<e2>')
+            new_entity_pos[0][1] = entity2_end+1+1
+            tokens_a.insert(entity1_start+2, '<s1>')
+            new_entity_pos[1][0] = entity1_start+2
+            tokens_a.insert(entity1_end+3,'<e1>')
+            new_entity_pos[1][1] = entity1_end+3+1
 
         if new_entity_pos[1][1] > max_seq_length - 2 - 1:
+            print("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            print(new_entity_pos[1][1])
+            print(tokens_a)
             import pdb;pdb.set_trace()
             
         tokens_b = None
@@ -552,13 +613,37 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         
 
         # Used for mention pooling
+        #entity_mask_tag = 1
+        #entity_mask = [0] * len(input_ids)
+        #for entity in new_entity_pos:
+        #    start, end = entity[0],entity[1]
+        #    for i in range(start+1, end-1):
+        #        # [CLS], need to +1 offset
+        #        entity_mask[i+1] = entity_mask_tag
+
+
+
+        # #two entity mask
+
         entity_mask_tag = 1
-        entity_mask = [0] * len(input_ids)
-        for entity in new_entity_pos:
-            start, end = entity[0],entity[1]
-            for i in range(start+1, end-1):
-                # [CLS], need to +1 offset
-                entity_mask[i+1] = entity_mask_tag
+        entity1_mask = [0] * len(input_ids)
+        entity2_mask = [0] * len(input_ids)
+        # mask all token in entity
+        #entity1 = new_entity_pos[0]
+        #start1, end1 = entity1[0], entity1[1]
+        #for i in range(start1, end1):
+        #    entity1_mask[i+1] = entity_mask_tag
+        #entity2 = new_entity_pos[1]
+        #start2, end2 = entity2[0], entity2[1]
+        #for i in range(start2, end2):
+        #    entity2_mask[i+1] = entity_mask_tag
+        
+        # mask s1 and s2 in entity
+        entity1_mask[new_entity_pos[0][0]+1] = entity_mask_tag
+        entity2_mask[new_entity_pos[1][0]+1] = entity_mask_tag
+        entity_mask = []
+        entity_mask.append(entity1_mask)
+        entity_mask.append(entity2_mask)
         
         """
             Different position embedding
@@ -614,7 +699,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
-        assert len(entity_mask) == max_seq_length
+        assert len(entity_mask[0]) == max_seq_length
+        assert len(entity_mask[1]) == max_seq_length
         assert len(entity_seg_pos) == max_seq_length
         assert len(entity_seg_pos_) == max_seq_length
         assert len(entity_span1_pos) == max_seq_length
@@ -718,6 +804,8 @@ def compute_metrics(task_name, preds, labels):
     elif task_name == "mrpc":
         return acc_and_f1(preds, labels)
     elif task_name == "sem":
+        return acc_and_f1(preds, labels)
+    elif task_name == "tacred":
         return acc_and_f1(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
@@ -842,6 +930,7 @@ def main():
         "mnli-mm": MnliMismatchedProcessor,
         "mrpc": MrpcProcessor,
         "sem": SemProcessor,
+        "tacred": TacredProcessor,
         "sst-2": Sst2Processor,
         "sts-b": StsbProcessor,
         "qqp": QqpProcessor,
@@ -855,6 +944,7 @@ def main():
         "mnli": "classification",
         "mrpc": "classification",
         "sem": "classification",
+        "tacred": "classification",
         "sst-2": "classification",
         "sts-b": "regression",
         "qqp": "classification",

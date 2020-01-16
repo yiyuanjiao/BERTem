@@ -30,9 +30,14 @@ import numpy as np
 import time
 from io import open
 
+
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
+from torch.nn.parameter import Parameter
+from torch.nn.modules.module import Module
+import torch.nn.functional as F
+import scipy.sparse as sp
 
 from .file_utils import cached_path, WEIGHTS_NAME, CONFIG_NAME
 
@@ -247,6 +252,58 @@ except ImportError:
             s = (x - u).pow(2).mean(-1, keepdim=True)
             x = (x - u) / torch.sqrt(s + self.variance_epsilon)
             return self.weight * x + self.bias
+
+class GraphConvolution(Module):
+    """
+    Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
+    """
+
+    def __init__(self, in_features, out_features, bias=True):
+        super(GraphConvolution, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = Parameter(torch.FloatTensor(in_features, out_features))
+        if bias:
+            self.bias = Parameter(torch.FloatTensor(out_features))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def forward(self, input, adj):
+        support = torch.mm(input, self.weight)
+        output = torch.mm(adj, support)
+        if self.bias is not None:
+            return output + self.bias
+        else:
+            return output
+
+    def __repr__(self):
+        return self.__class__.__name__ + ' (' \
+               + str(self.in_features) + ' -> ' \
+               + str(self.out_features) + ')'
+
+class GCN(nn.Module):
+    def __init__(self, in_features, hidden_features, out_features, dropout):
+        super(GCN, self).__init__()
+
+        self.gc1 = GraphConvolution(in_features, hidden_features)
+        self.gc2 = GraphConvolution(hidden_features, hidden_features)
+        self.gc3 = GraphConvolution(hidden_features, out_features)
+        self.dropout = dropout
+
+    def forward(self, x, adj):
+        x = F.relu(self.gc1(x, adj))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.relu(self.gc2(x, adj))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = self.gc3(x, adj)
+        return x
 
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
@@ -1046,7 +1103,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.layernorm_span = nn.LayerNorm(max_seq_length)
 
         self.relu = nn.ReLU()
-        
+        self.gcn = GCN(config.hidden_size * 2, config.hidden_size, config.hidden_size)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
@@ -1119,6 +1176,23 @@ class BertForSequenceClassification(BertPreTrainedModel):
         entity0_output = torch.matmul(diag_entity0_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
         entity1_output = torch.matmul(diag_entity1_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
         entity_output = torch.cat((entity0_output, entity1_output),1)
+
+        # get full connect graph
+        token_num = []
+        for i in range(batch_size):
+            # get token num in every sequence
+            token_num.append(attention_mask[i].sum())
+            adj_ = torch.ones(token_num[i],token_num[i])
+            degree_ = torch.diag(torch.rsqrt(adj_.sum(dim=1)))
+            adj = torch.mm(degree_, torch.mm(adj_, degree_))
+            seq_gcn = self.gcn(adj, encoded_layers[i])
+
+
+
+
+
+
+
         batch_entity_emb_ = entity_output
 
         # connection cls with entity start embeding

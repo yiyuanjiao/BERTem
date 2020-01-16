@@ -276,11 +276,7 @@ class GraphConvolution(Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, inputs, adj):
-        print(type(self.weight))
-        print(self.weight.size())
-        print(inputs)
         support = torch.mm(inputs, self.weight)
-        print("+++++++++++++++++++++++++")
         output = torch.mm(adj, support)
         if self.bias is not None:
             return output + self.bias
@@ -293,20 +289,21 @@ class GraphConvolution(Module):
                + str(self.out_features) + ')'
 
 class GCN(nn.Module):
-    def __init__(self, in_features, hidden_features, out_features, dropout):
+    def __init__(self, config, in_features, hidden_features, out_features):
         super(GCN, self).__init__()
-
+        
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.relu = nn.ReLU()
         self.gc1 = GraphConvolution(in_features, hidden_features)
         self.gc2 = GraphConvolution(hidden_features, hidden_features)
         self.gc3 = GraphConvolution(hidden_features, out_features)
-        self.dropout = dropout
 
     def forward(self, x, adj):
         print("___________________________________")
-        x = F.relu(self.gc1(x, adj))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = F.relu(self.gc2(x, adj))
-        x = F.dropout(x, self.dropout, training=self.training)
+        x = self.relu(self.gc1(x, adj))
+        x = self.dropout(x)
+        x = self.relu(self.gc2(x, adj))
+        x = self.dropout(x)
         x = self.gc3(x, adj)
         return x
 
@@ -1108,7 +1105,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.layernorm_span = nn.LayerNorm(max_seq_length)
 
         self.relu = nn.ReLU()
-        self.gcn = GCN(config.hidden_size, config.hidden_size, config.hidden_size, self.dropout)
+        self.gcn = GCN(config, config.hidden_size, config.hidden_size, config.hidden_size)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)

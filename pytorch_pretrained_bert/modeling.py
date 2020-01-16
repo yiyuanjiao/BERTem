@@ -1118,7 +1118,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         diag_entity1_mask = torch.tensor(diag_entity1_mask_).cuda()
         entity0_output = torch.matmul(diag_entity0_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
         entity1_output = torch.matmul(diag_entity1_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
-        entity_output = torch.cat((cls_representation, torch.cat((entity0_output, entity1_output),1)),1)
+        entity_output = torch.cat((entity0_output, entity1_output),1)
         batch_entity_emb_ = entity_output
 
         # connection cls with entity start embeding

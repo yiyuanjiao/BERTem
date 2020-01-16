@@ -275,10 +275,11 @@ class GraphConvolution(Module):
         if self.bias is not None:
             self.bias.data.uniform_(-stdv, stdv)
 
-    def forward(self, input, adj):
+    def forward(self, inputs, adj):
         print(type(self.weight))
-        print(self.weight)
-        support = torch.mm(input, self.weight)
+        print(self.weight.size())
+        print(inputs)
+        support = torch.mm(inputs, self.weight)
         print("+++++++++++++++++++++++++")
         output = torch.mm(adj, support)
         if self.bias is not None:
@@ -1107,7 +1108,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.layernorm_span = nn.LayerNorm(max_seq_length)
 
         self.relu = nn.ReLU()
-        self.gcn = GCN(config.hidden_size * 2, config.hidden_size, config.hidden_size, self.dropout)
+        self.gcn = GCN(config.hidden_size, config.hidden_size, config.hidden_size, self.dropout)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
@@ -1189,8 +1190,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
             adj_ = torch.ones(token_num[i],token_num[i])
             degree_ = torch.diag(torch.rsqrt(adj_.sum(dim=1)))
             adj = torch.mm(degree_, torch.mm(adj_, degree_)).cuda()
-            print("2222222222222222222222222222222222222")
-            seq_gcn = self.gcn(adj, encoded_layers[i,0:token_num])
+            print(token_num[i])
+            seq_gcn = self.gcn(encoded_layers[i,0:token_num[i]], adj)
             print("111111111111111111111111111111")
             print(seq_gcn.size())
             time.sleep(10000)

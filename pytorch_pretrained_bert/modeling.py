@@ -276,7 +276,10 @@ class GraphConvolution(Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj):
+        print(type(self.weight))
+        print(self.weight)
         support = torch.mm(input, self.weight)
+        print("+++++++++++++++++++++++++")
         output = torch.mm(adj, support)
         if self.bias is not None:
             return output + self.bias
@@ -298,6 +301,7 @@ class GCN(nn.Module):
         self.dropout = dropout
 
     def forward(self, x, adj):
+        print("___________________________________")
         x = F.relu(self.gc1(x, adj))
         x = F.dropout(x, self.dropout, training=self.training)
         x = F.relu(self.gc2(x, adj))
@@ -1185,7 +1189,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
             adj_ = torch.ones(token_num[i],token_num[i])
             degree_ = torch.diag(torch.rsqrt(adj_.sum(dim=1)))
             adj = torch.mm(degree_, torch.mm(adj_, degree_)).cuda()
-            print(type(adj))
+            print("2222222222222222222222222222222222222")
             seq_gcn = self.gcn(adj, encoded_layers[i,0:token_num])
             print("111111111111111111111111111111")
             print(seq_gcn.size())

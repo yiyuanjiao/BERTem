@@ -1103,7 +1103,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.layernorm_span = nn.LayerNorm(max_seq_length)
 
         self.relu = nn.ReLU()
-        self.gcn = GCN(config.hidden_size * 2, config.hidden_size, config.hidden_size)
+        self.gcn = GCN(config.hidden_size * 2, config.hidden_size, config.hidden_size, self.dropout)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
@@ -1184,8 +1184,12 @@ class BertForSequenceClassification(BertPreTrainedModel):
             token_num.append(attention_mask[i].sum())
             adj_ = torch.ones(token_num[i],token_num[i])
             degree_ = torch.diag(torch.rsqrt(adj_.sum(dim=1)))
-            adj = torch.mm(degree_, torch.mm(adj_, degree_))
-            seq_gcn = self.gcn(adj, encoded_layers[i])
+            adj = torch.mm(degree_, torch.mm(adj_, degree_)).cuda()
+            print(type(adj))
+            seq_gcn = self.gcn(adj, encoded_layers[i,0:token_num])
+            print("111111111111111111111111111111")
+            print(seq_gcn.size())
+            time.sleep(10000)
 
 
 

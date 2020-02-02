@@ -393,18 +393,22 @@ class WordpieceTokenizer(object):
                         cur_substr = substr
                         break
                     end -= 1
-                    # if there is not a substr in self vocab, is_bad is True
-                    if cur_substr is None:
-                        is_bad = True
-                        break
-                    sub_tokens.append(cur_substr)
-                    start = end
-                # if is_bad append unk
-                # if length of sub_tokens larger than 5 append unk
-                if is_bad or len(sub_tokens) > 5:
-                    output_tokens.append(self.unk_token)
-                else:
-                    output_tokens.extend(sub_tokens)
+                # if there is not a substr in self vocab, is_bad is True
+                if cur_substr is None:
+                    is_bad = True
+                    break
+                sub_tokens.append(cur_substr)
+                start = end
+            # if is_bad append unk
+            # if length of sub_tokens larger than 5 append unk
+            if len(sub_tokens) != 0: 
+                avg_l = len(chars) / len(sub_tokens)
+            else:
+                avg_l = 0
+            if is_bad or len(sub_tokens) > 3 or avg_l <= 2:
+                output_tokens.append(self.unk_token)
+            else:
+                output_tokens.extend(sub_tokens)
         return output_tokens
 
 

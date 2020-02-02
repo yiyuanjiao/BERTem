@@ -400,8 +400,12 @@ class WordpieceTokenizer(object):
                 sub_tokens.append(cur_substr)
                 start = end
             # if is_bad append unk
-            # if length of sub_tokens larger than 5 append unk
-            if is_bad or len(sub_tokens) > 5:
+            # if length of sub_tokens larger than 3 append unk
+            if len(sub_tokens) != 0: 
+                avg_l = len(chars) / len(sub_tokens)
+            else:
+                avg_l = 0
+            if is_bad or len(sub_tokens) > 3 or avg_l <= 2:
                 output_tokens.append(self.unk_token)
             else:
                 output_tokens.extend(sub_tokens)

@@ -299,7 +299,6 @@ class GCN(nn.Module):
         self.gc3 = GraphConvolution(hidden_features, out_features)
 
     def forward(self, x, adj):
-        print("___________________________________")
         x = self.relu(self.gc1(x, adj))
         x = self.dropout(x)
         x = self.relu(self.gc2(x, adj))
@@ -1107,7 +1106,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.relu = nn.ReLU()
         self.gcn = GCN(config, config.hidden_size, config.hidden_size, config.hidden_size)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
-        self.classifier_concat = nn.Linear(config.hidden_size * 2, num_labels)
+        self.classifier_concat = nn.Linear(config.hidden_size * 3, num_labels)
         #self.classifier_concat = nn.Linear(config.hidden_size + max_seq_length * 2, num_labels)
         
         self.apply(self.init_bert_weights)
@@ -1178,28 +1177,21 @@ class BertForSequenceClassification(BertPreTrainedModel):
         entity0_output = torch.matmul(diag_entity0_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
         entity1_output = torch.matmul(diag_entity1_mask, encoded_layers).sum(dim=1)#.view(batch_size, -1)
         entity_output = torch.cat((entity0_output, entity1_output),1)
+        #batch_entity_emb_ = entity_output
 
         # get full connect graph
-        token_num = []
+        batch_seq_gcn = torch.Tensor().cuda()
         for i in range(batch_size):
             # get token num in every sequence
-            token_num.append(attention_mask[i].sum())
-            adj_ = torch.ones(token_num[i],token_num[i])
+            token_num = attention_mask[i].sum()
+            adj_ = torch.ones(token_num,token_num)
             degree_ = torch.diag(torch.rsqrt(adj_.sum(dim=1)))
             adj = torch.mm(degree_, torch.mm(adj_, degree_)).cuda()
-            print(token_num[i])
-            seq_gcn = self.gcn(encoded_layers[i,0:token_num[i]], adj)
-            print("111111111111111111111111111111")
-            print(seq_gcn.size())
-            time.sleep(10000)
-
-
-
-
-
-
-
-        batch_entity_emb_ = entity_output
+            seq_gcn = self.gcn(encoded_layers[i,0:token_num], adj)
+            seq_gcn = torch.mean(seq_gcn, dim=0)
+            batch_seq_gcn = torch.cat((batch_seq_gcn, seq_gcn), 0)
+        batch_seq_gcn = batch_seq_gcn.view(batch_size, -1) 
+        batch_entity_emb_ = torch.cat((batch_seq_gcn, entity_output), 1)
 
         # connection cls with entity start embeding
         #cls_representation = encoded_layers[:,0:1,:].view(batch_size,-1)

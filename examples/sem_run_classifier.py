@@ -792,7 +792,7 @@ def acc_and_f1_(preds, labels):
     labels_ = [i for i in range(class_num)]
     labels_.remove(no_relation_label)
 
-    acc = accuracy_score(labels, preds, labels=labels_)
+    acc = accuracy_score(labels, preds)
     f1 = f1_score(y_true=labels, y_pred=preds, labels=labels_, average='micro')
     report = classification_report(labels, preds, labels=labels_)
     return {

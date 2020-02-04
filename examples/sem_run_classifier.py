@@ -785,6 +785,23 @@ def acc_and_f1(preds, labels):
     }
 
 
+def acc_and_f1_(preds, labels):
+    # 删除no_relation的样本
+    class_num = 42
+    no_relation_label = 23
+    labels_ = [i for i in range(class_num)]
+    labels_.remove(no_relation_label)
+
+    acc = accuracy_score(labels, preds, labels=labels_)
+    f1 = f1_score(y_true=labels, y_pred=preds, labels=labels_, average='micro')
+    report = classification_report(labels, preds, labels=labels_)
+    return {
+        "acc": acc,
+        "f1": f1,
+        "acc_and_f1": (acc + f1) / 2,
+        "report": report
+    }
+
 def pearson_and_spearman(preds, labels):
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
@@ -806,7 +823,7 @@ def compute_metrics(task_name, preds, labels):
     elif task_name == "sem":
         return acc_and_f1(preds, labels)
     elif task_name == "tacred":
-        return acc_and_f1(preds, labels)
+        return acc_and_f1_(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
     elif task_name == "qqp":

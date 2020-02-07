@@ -775,7 +775,7 @@ def write_error_preds_input_ids(preds, labels,input_ids):
 
 def acc_and_f1(preds, labels):
     acc = accuracy_score(labels, preds)
-    f1 = f1_score(y_true=labels, y_pred=preds,average='macro')
+    f1 = f1_score(y_true=labels, y_pred=preds,average='micro')
     report = classification_report(labels, preds)
     return {
         "acc": acc,
